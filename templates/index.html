@@ -334,13 +334,6 @@
     }
     .segment-item.low-conf { border-color: rgba(234,179,8,0.4); }
 
-    .seg-time-btn {
-      background: none; border: none; padding: 0; cursor: pointer;
-      font-size: 11px; font-weight: 700; color: var(--accent);
-      font-family: monospace; text-align: left;
-      display: block;
-    }
-    .seg-time-btn:hover { text-decoration: underline; }
     .seg-end-time { font-size: 10px; color: var(--muted); font-family: monospace; }
 
     .seg-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
@@ -406,6 +399,73 @@
       0%, 100% { opacity: 1; transform: scale(1); }
       50%       { opacity: 0.35; transform: scale(0.75); }
     }
+
+    /* ── Segment interactivity ────────────────────────────────────────────────── */
+
+    .segment-item {
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .segment-item:hover { background: rgba(59,130,246,0.07); border-color: rgba(59,130,246,0.35); }
+    .segment-item.seg-active { background: rgba(59,130,246,0.14); border-color: rgba(59,130,246,0.55); }
+    .segment-item.low-conf:hover { background: rgba(234,179,8,0.07); }
+    .segment-item.low-conf.seg-active { background: rgba(234,179,8,0.12); border-color: rgba(234,179,8,0.55); }
+
+    .seg-time-btn {
+      font-size: 11px; font-weight: 700; color: var(--accent);
+      font-family: monospace; display: block;
+    }
+    .seg-time-btn:hover { text-decoration: underline; }
+
+    /* ── Timeline bar ────────────────────────────────────────────────────────── */
+
+    .timeline-bar {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .tl-header {
+      padding: 8px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--surface2);
+    }
+    .tl-track {
+      position: relative;
+      height: 44px;
+      background: #0a0c11;
+    }
+    .tl-segment {
+      position: absolute;
+      top: 6px;
+      height: 32px;
+      border-radius: 4px;
+      cursor: pointer;
+      opacity: 0.72;
+      transition: opacity 0.15s, outline 0.1s;
+      min-width: 4px;
+    }
+    .tl-segment:hover { opacity: 1; }
+    .tl-segment.tl-active { opacity: 1; outline: 2px solid rgba(255,255,255,0.5); outline-offset: 1px; }
+    .tl-needle {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: rgba(255,255,255,0.85);
+      pointer-events: none;
+      z-index: 5;
+      border-radius: 1px;
+      box-shadow: 0 0 6px rgba(255,255,255,0.3);
+    }
   </style>
 </head>
 <body>
@@ -445,6 +505,16 @@
           <div class="player-meta">
             <span class="player-icon">&#127909;</span>
             <span class="player-filename" id="player-file-name"></span>
+          </div>
+        </div>
+
+        <div class="timeline-bar" id="timeline-bar" style="display:none">
+          <div class="tl-header">
+            <span>Action Timeline</span>
+            <span id="tl-duration-label"></span>
+          </div>
+          <div class="tl-track" id="tl-track">
+            <div class="tl-needle" id="tl-needle" style="left:0%"></div>
           </div>
         </div>
 
@@ -576,6 +646,7 @@ const STEP_NAMES = {
 let currentVideoId = null;
 let pollInterval   = null;
 const rendered     = new Set();
+let _tlSegments    = [];
 
 // ── File selection ─────────────────────────────────────────────────────────────
 
@@ -646,6 +717,10 @@ function setDot(name, state) {
 }
 
 function resetUI() {
+  _tlSegments = [];
+  document.getElementById('timeline-bar').style.display = 'none';
+  document.getElementById('tl-track').querySelectorAll('.tl-segment').forEach(el => el.remove());
+  document.getElementById('tl-needle').style.left = '0%';
   rendered.clear();
   document.getElementById('error-msg').style.display        = 'none';
   document.getElementById('step-counter').style.display     = 'none';
@@ -931,6 +1006,7 @@ function fmtTime(sec) {
 }
 
 function renderAnnotation(segments) {
+  _tlSegments = segments || [];
   if (!segments || !segments.length) {
     document.getElementById('annotation-output').innerHTML = '<p style="color:var(--muted)">No segments returned.</p>';
     return;
@@ -939,11 +1015,12 @@ function renderAnnotation(segments) {
   let html = '<div class="section-label">' + segments.length + ' Action Segment' + (segments.length > 1 ? 's' : '') + '</div>';
   html += '<div class="segment-list">';
 
-  for (const seg of segments) {
-    const meta    = seg.metadata || {};
-    const lowConf = meta.confidence === 'LOW';
-    const start   = seg.start_time ?? seg.start ?? null;
-    const end     = seg.end_time   ?? seg.end   ?? null;
+  for (let i = 0; i < segments.length; i++) {
+    const seg      = segments[i];
+    const meta     = seg.metadata || {};
+    const lowConf  = meta.confidence === 'LOW';
+    const start    = seg.start_time ?? seg.start ?? null;
+    const end      = seg.end_time   ?? seg.end   ?? null;
     const taskType = meta.task_type || '';
     const verb     = meta.verb || '';
     const noun     = meta.noun || '';
@@ -951,14 +1028,12 @@ function renderAnnotation(segments) {
     const conf     = meta.confidence || 'MEDIUM';
     const confColor = conf === 'HIGH' ? 'var(--green)' : conf === 'LOW' ? 'var(--yellow)' : 'var(--muted)';
 
-    const startStr = fmtTime(start);
-    const seekAttr = start != null ? ' onclick="seekVideo(' + start + ')" title="Jump to ' + startStr + '"' : '';
+    const startStr  = fmtTime(start);
+    const cardClick = start != null ? ' onclick="handleSegmentClick(' + i + ',' + start + ')"' : '';
 
-    html += '<div class="segment-item' + (lowConf ? ' low-conf' : '') + '">' +
+    html += '<div class="segment-item' + (lowConf ? ' low-conf' : '') + '" data-seg-idx="' + i + '"' + cardClick + '>' +
       '<div>' +
-        (start != null
-          ? '<button class="seg-time-btn"' + seekAttr + '>' + startStr + '</button>'
-          : '<span class="seg-time-btn" style="cursor:default">' + startStr + '</span>') +
+        '<span class="seg-time-btn">' + startStr + '</span>' +
         '<div class="seg-end-time">→ ' + fmtTime(end) + '</div>' +
       '</div>' +
       '<div>' +
@@ -968,7 +1043,7 @@ function renderAnnotation(segments) {
           (taskType ? '<span class="tag">' + taskType + '</span>' : '') +
           (verb && noun ? '<span class="tag">' + verb + ' ' + noun + '</span>' : '') +
           (hand ? '<span class="tag hand">' + hand + '</span>' : '') +
-          (lowConf ? '<span class="tag low">⚠ LOW CONF</span>' : '') +
+          (lowConf ? '<span class="tag low">&#9888; LOW CONF</span>' : '') +
         '</div>' +
       '</div>' +
       '<div class="seg-conf" style="color:' + confColor + ';font-size:11px;font-weight:700">' + conf + '</div>' +
@@ -976,11 +1051,81 @@ function renderAnnotation(segments) {
   }
   html += '</div>';
   document.getElementById('annotation-output').innerHTML = html;
+  tryBuildTimeline();
 }
 
 document.getElementById('download-btn').addEventListener('click', () => {
   if (currentVideoId) window.location.href = '/api/download/' + currentVideoId;
 });
+
+// ── Timeline ───────────────────────────────────────────────────────────────────
+
+const _videoEl = document.getElementById('video-player');
+
+_videoEl.addEventListener('loadedmetadata', tryBuildTimeline);
+
+_videoEl.addEventListener('timeupdate', () => {
+  if (!_videoEl.duration || !isFinite(_videoEl.duration)) return;
+  const pct = (_videoEl.currentTime / _videoEl.duration) * 100;
+  document.getElementById('tl-needle').style.left = pct + '%';
+});
+
+function tryBuildTimeline() {
+  if (!_tlSegments.length) return;
+  const dur = _videoEl.duration;
+  if (!dur || !isFinite(dur)) return;
+  buildTimeline(_tlSegments, dur);
+}
+
+function buildTimeline(segments, duration) {
+  const track = document.getElementById('tl-track');
+  track.querySelectorAll('.tl-segment').forEach(el => el.remove());
+  document.getElementById('tl-duration-label').textContent = fmtTime(duration);
+
+  for (let i = 0; i < segments.length; i++) {
+    const seg  = segments[i];
+    const meta = seg.metadata || {};
+    const s0   = seg.start_time ?? seg.start ?? 0;
+    const s1   = seg.end_time   ?? seg.end   ?? s0 + 1;
+    const conf = meta.confidence || 'MEDIUM';
+    const color = conf === 'HIGH' ? '#22c55e' : conf === 'LOW' ? '#eab308' : '#3b82f6';
+
+    const leftPct  = Math.min((s0 / duration) * 100, 98);
+    const widthPct = Math.max(((s1 - s0) / duration) * 100, 0.6);
+
+    const block = document.createElement('div');
+    block.className        = 'tl-segment';
+    block.style.left       = leftPct + '%';
+    block.style.width      = widthPct + '%';
+    block.style.background = color;
+    block.dataset.segIdx   = i;
+    block.title = (meta.title || 'Action') + '  ·  ' + fmtTime(s0) + ' – ' + fmtTime(s1) + '  ·  ' + conf;
+    block.addEventListener('click', () => handleTimelineClick(i, s0));
+    track.appendChild(block);
+  }
+
+  document.getElementById('timeline-bar').style.display = 'block';
+}
+
+function handleTimelineClick(idx, start) {
+  seekVideo(start);
+  const card = document.querySelector('.segment-item[data-seg-idx="' + idx + '"]');
+  if (card) {
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    card.classList.add('seg-active');
+    setTimeout(() => card.classList.remove('seg-active'), 1200);
+  }
+}
+
+function handleSegmentClick(idx, start) {
+  seekVideo(start);
+  const block = document.querySelector('.tl-segment[data-seg-idx="' + idx + '"]');
+  if (block) {
+    document.querySelectorAll('.tl-segment.tl-active').forEach(el => el.classList.remove('tl-active'));
+    block.classList.add('tl-active');
+    setTimeout(() => block.classList.remove('tl-active'), 900);
+  }
+}
 </script>
 </body>
 </html>
