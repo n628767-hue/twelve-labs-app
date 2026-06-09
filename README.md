@@ -53,7 +53,18 @@ Open `http://localhost:5001`, upload a video, and click **Run Full Intelligence 
 Requires the [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html) and Python 3.12.
 
 ```bash
-# Store the API key in SSM before deploying (use --type String, not SecureString)
+# 1. Enable S3 CORS so the browser can upload directly to S3
+aws s3api put-bucket-cors --bucket YOUR_BUCKET --cors-configuration '{
+  "CORSRules": [{
+    "AllowedHeaders": ["*"],
+    "AllowedMethods": ["PUT", "GET", "HEAD"],
+    "AllowedOrigins": ["*"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }]
+}'
+
+# 2. Store the API key in SSM before deploying (use --type String, not SecureString)
 aws ssm put-parameter \
   --name /atlas-demo/TWELVELABS_API_KEY \
   --value "tlk_..." \
@@ -94,7 +105,9 @@ aws stepfunctions start-execution \
 
 ```
 Browser → Flask (app.py)
-  ├── upload video → S3, generate presigned URL
+  ├── POST /api/upload-url → returns presigned S3 PUT URL
+  ├── Browser PUTs video directly to S3 (bypasses Flask)
+  ├── POST /api/process {video_id, s3_key} → starts background thread
   └── background thread runs three workloads sequentially
        ├── Workload 1 → TwelveLabs Pegasus 1.5 (sync analyze)
        ├── Workload 2 → TwelveLabs Pegasus 1.5 (sync analyze)
