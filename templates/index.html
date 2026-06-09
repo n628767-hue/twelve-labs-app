@@ -39,6 +39,9 @@
       align-items: center;
       gap: 12px;
       background: var(--surface);
+      position: sticky;
+      top: 0;
+      z-index: 10;
     }
 
     header .logo {
@@ -60,12 +63,15 @@
       padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;
     }
 
-    main { max-width: 1200px; margin: 0 auto; padding: 32px; }
+    main { max-width: 1280px; margin: 0 auto; padding: 32px; }
+    @media (max-width: 600px) { main { padding: 16px; } }
+
+    /* ── Upload section ───────────────────────────────────────────────────────── */
 
     .upload-zone {
       border: 2px dashed var(--border);
       border-radius: var(--radius);
-      padding: 48px 32px;
+      padding: 64px 32px;
       text-align: center;
       background: var(--surface);
       transition: border-color 0.2s, background 0.2s;
@@ -73,17 +79,16 @@
       position: relative;
     }
     .upload-zone:hover, .upload-zone.drag { border-color: var(--accent); background: rgba(59,130,246,0.04); }
-    .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-    .upload-zone .icon { font-size: 40px; margin-bottom: 12px; }
-    .upload-zone h2 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+    .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+    .upload-zone .icon { font-size: 44px; margin-bottom: 14px; }
+    .upload-zone h2 { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
     .upload-zone p { color: var(--muted); font-size: 13px; }
 
-    #file-name {
-      margin-top: 12px;
-      font-size: 13px;
-      color: var(--accent);
-      font-weight: 500;
-    }
+    #file-name { margin-top: 14px; font-size: 13px; color: var(--accent); font-weight: 500; }
+
+    .upload-actions { text-align: center; }
+
+    /* ── Buttons ─────────────────────────────────────────────────────────────── */
 
     .btn {
       display: inline-flex; align-items: center; gap: 8px;
@@ -103,14 +108,89 @@
       color: var(--text);
       padding: 8px 18px;
       font-size: 13px;
+      margin-top: 0;
     }
+
+    .btn-ghost {
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      width: 100%; background: transparent;
+      border: 1px solid var(--border); color: var(--muted);
+      border-radius: 8px; padding: 9px 16px;
+      font-size: 13px; font-weight: 500;
+      cursor: pointer; transition: border-color 0.2s, color 0.2s;
+      margin-top: 0;
+    }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--text); }
+
+    /* ── Split layout ────────────────────────────────────────────────────────── */
+
+    .split-layout {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 28px;
+      align-items: start;
+    }
+
+    @media (max-width: 900px) {
+      .split-layout { grid-template-columns: 1fr; }
+    }
+
+    /* ── Player column ───────────────────────────────────────────────────────── */
+
+    .player-col {
+      position: sticky;
+      top: calc(72px + 20px); /* header height + gap */
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    @media (max-width: 900px) {
+      .player-col { position: static; }
+    }
+
+    .player-wrap {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: #000;
+    }
+
+    .player-wrap video {
+      width: 100%;
+      display: block;
+      max-height: 300px;
+      object-fit: contain;
+      background: #000;
+    }
+
+    .player-meta {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .player-icon { font-size: 14px; flex-shrink: 0; }
+
+    .player-filename {
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex: 1;
+    }
+
+    /* ── Progress + step counter ─────────────────────────────────────────────── */
 
     .progress-bar {
       height: 3px;
       background: var(--border);
       border-radius: 2px;
       overflow: hidden;
-      margin-top: 16px;
       display: none;
     }
     .progress-bar.active { display: block; }
@@ -122,10 +202,39 @@
       border-radius: 2px;
     }
 
-    .status-msg { margin-top: 10px; color: var(--muted); font-size: 13px; text-align: center; }
+    .status-msg { color: var(--muted); font-size: 13px; }
 
-    .results { margin-top: 40px; display: none; }
-    .results.show { display: block; }
+    .step-counter {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 13px;
+    }
+    .step-counter .step-spinner {
+      width: 14px; height: 14px; border-radius: 50%;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      animation: spin 0.8s linear infinite;
+      flex-shrink: 0;
+    }
+    .step-counter .step-spinner.done { border-color: var(--green); border-top-color: var(--green); animation: none; }
+    .step-counter .step-text { flex: 1; }
+    .step-counter .step-fraction { color: var(--muted); font-size: 12px; white-space: nowrap; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-msg {
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: 8px;
+      padding: 14px 16px;
+      color: #fca5a5;
+      font-size: 13px;
+    }
+
+    /* ── Results column ──────────────────────────────────────────────────────── */
 
     .results-header {
       display: flex; align-items: center; justify-content: space-between;
@@ -133,11 +242,7 @@
     }
     .results-header h2 { font-size: 17px; font-weight: 700; }
 
-    .workload-grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 24px;
-    }
+    .workload-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
 
     .workload-card {
       background: var(--surface);
@@ -147,7 +252,7 @@
     }
 
     .card-header {
-      padding: 16px 20px;
+      padding: 14px 20px;
       border-bottom: 1px solid var(--border);
       display: flex; align-items: center; gap: 12px;
       background: var(--surface2);
@@ -165,159 +270,134 @@
 
     .card-body { padding: 20px; }
 
-    /* Disposition / Verdict pill */
+    /* ── Disposition / verdict pill ──────────────────────────────────────────── */
+
     .pill {
       display: inline-flex; align-items: center; gap: 6px;
       padding: 6px 14px; border-radius: 20px;
-      font-size: 13px; font-weight: 700;
-      margin-bottom: 16px;
+      font-size: 13px; font-weight: 700; margin-bottom: 16px;
     }
-    .pill.pass { background: rgba(34,197,94,0.12); color: var(--green); border: 1px solid rgba(34,197,94,0.3); }
+    .pill.pass   { background: rgba(34,197,94,0.12); color: var(--green);  border: 1px solid rgba(34,197,94,0.3); }
     .pill.review { background: rgba(234,179,8,0.12); color: var(--yellow); border: 1px solid rgba(234,179,8,0.3); }
     .pill.block, .pill.reject { background: rgba(239,68,68,0.12); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
 
-    /* Compliance categories table */
+    /* ── Compliance categories ───────────────────────────────────────────────── */
+
     .cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    @media (max-width: 700px) { .cat-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 600px) { .cat-grid { grid-template-columns: 1fr; } }
 
     .cat-item {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 12px 14px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px 14px;
     }
-    .cat-item.flagged { border-color: rgba(239,68,68,0.4); background: rgba(239,68,68,0.05); }
-    .cat-item.uncertain { border-color: rgba(234,179,8,0.4); background: rgba(234,179,8,0.05); }
+    .cat-item.flagged   { border-color: rgba(239,68,68,0.4);  background: rgba(239,68,68,0.05); }
+    .cat-item.uncertain { border-color: rgba(234,179,8,0.4);  background: rgba(234,179,8,0.05); }
 
     .cat-name {
       font-size: 11px; font-weight: 700; text-transform: uppercase;
       letter-spacing: 0.5px; color: var(--muted); margin-bottom: 6px;
     }
-
     .cat-status { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
     .cat-status .dot { width: 8px; height: 8px; border-radius: 50%; }
-    .dot-clear { background: var(--green); }
-    .dot-flagged { background: var(--red); }
-    .dot-uncertain { background: var(--yellow); }
-
+    .dot-clear    { background: var(--green); }
+    .dot-flagged  { background: var(--red); }
+    .dot-uncertain{ background: var(--yellow); }
     .cat-evidence { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.4; }
 
-    /* Quality dimensions */
+    /* ── Quality dimensions ──────────────────────────────────────────────────── */
+
     .dim-list { display: grid; gap: 10px; }
     .dim-item {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 12px 14px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px 14px;
     }
     .dim-row { display: flex; align-items: center; gap: 10px; }
     .dim-name { font-size: 13px; font-weight: 600; flex: 1; }
     .score-bar { flex: 0 0 80px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
     .score-fill { height: 100%; border-radius: 3px; }
     .score-fill.s5 { width: 100%; background: var(--green); }
-    .score-fill.s4 { width: 80%; background: #4ade80; }
-    .score-fill.s3 { width: 60%; background: var(--yellow); }
-    .score-fill.s2 { width: 40%; background: #f97316; }
-    .score-fill.s1 { width: 20%; background: var(--red); }
+    .score-fill.s4 { width: 80%;  background: #4ade80; }
+    .score-fill.s3 { width: 60%;  background: var(--yellow); }
+    .score-fill.s2 { width: 40%;  background: #f97316; }
+    .score-fill.s1 { width: 20%;  background: var(--red); }
     .score-num { font-size: 13px; font-weight: 700; flex: 0 0 24px; text-align: right; }
     .dim-explanation { font-size: 12px; color: var(--muted); margin-top: 6px; }
 
-    /* Action segments */
+    /* ── Action segments ─────────────────────────────────────────────────────── */
+
     .segment-list { display: grid; gap: 8px; }
     .segment-item {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 12px 14px;
-      display: grid;
-      grid-template-columns: 70px 1fr auto;
-      gap: 12px;
-      align-items: start;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px 14px;
+      display: grid; grid-template-columns: 72px 1fr auto;
+      gap: 12px; align-items: start;
     }
     .segment-item.low-conf { border-color: rgba(234,179,8,0.4); }
 
-    .seg-time { font-size: 11px; font-weight: 700; color: var(--accent); font-family: monospace; }
-    .seg-end-time { font-size: 10px; color: var(--muted); }
+    .seg-time-btn {
+      background: none; border: none; padding: 0; cursor: pointer;
+      font-size: 11px; font-weight: 700; color: var(--accent);
+      font-family: monospace; text-align: left;
+      display: block;
+    }
+    .seg-time-btn:hover { text-decoration: underline; }
+    .seg-end-time { font-size: 10px; color: var(--muted); font-family: monospace; }
+
     .seg-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
-    .seg-desc { font-size: 12px; color: var(--muted); line-height: 1.4; }
-    .seg-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+    .seg-desc  { font-size: 12px; color: var(--muted); line-height: 1.4; }
+    .seg-meta  { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+
     .tag {
       font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px;
       background: rgba(59,130,246,0.1); color: var(--accent);
       border: 1px solid rgba(59,130,246,0.2);
     }
     .tag.hand { background: rgba(99,102,241,0.1); color: #818cf8; border-color: rgba(99,102,241,0.2); }
-    .tag.low { background: rgba(234,179,8,0.1); color: var(--yellow); border-color: rgba(234,179,8,0.2); }
+    .tag.low  { background: rgba(234,179,8,0.1);  color: var(--yellow); border-color: rgba(234,179,8,0.2); }
 
     .seg-conf { flex-shrink: 0; }
 
-    /* Prompt collapsible */
+    /* ── Prompt collapsible ──────────────────────────────────────────────────── */
+
     .prompt-toggle {
       background: none; border: none; color: var(--muted);
       font-size: 12px; cursor: pointer; padding: 0;
-      display: flex; align-items: center; gap: 4px;
-      margin-bottom: 8px;
+      display: flex; align-items: center; gap: 4px; margin-bottom: 8px;
     }
     .prompt-toggle:hover { color: var(--text); }
     .prompt-box {
-      background: #0a0c11;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 12px 14px;
-      font-family: monospace;
-      font-size: 11px;
-      color: #a0aec0;
-      white-space: pre-wrap;
-      line-height: 1.5;
-      display: none;
-      margin-bottom: 16px;
+      background: #0a0c11; border: 1px solid var(--border);
+      border-radius: 6px; padding: 12px 14px;
+      font-family: monospace; font-size: 11px; color: #a0aec0;
+      white-space: pre-wrap; line-height: 1.5;
+      display: none; margin-bottom: 16px;
     }
     .prompt-box.open { display: block; }
 
     .reviewer-box {
-      background: rgba(59,130,246,0.06);
-      border: 1px solid rgba(59,130,246,0.2);
-      border-radius: 8px;
-      padding: 14px 16px;
-      font-size: 13px;
-      line-height: 1.6;
-      margin-top: 16px;
+      background: rgba(59,130,246,0.06); border: 1px solid rgba(59,130,246,0.2);
+      border-radius: 8px; padding: 14px 16px;
+      font-size: 13px; line-height: 1.6; margin-top: 20px;
     }
-    .reviewer-box strong { color: var(--accent); display: block; margin-bottom: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .reviewer-box strong {
+      color: var(--accent); display: block; margin-bottom: 6px;
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
+    }
 
-    .confidence-bar {
-      display: flex; align-items: center; gap: 10px; margin-top: 10px;
-    }
+    .confidence-bar { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
     .confidence-bar label { font-size: 12px; color: var(--muted); }
     .conf-track { flex: 1; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
-    .conf-fill { height: 100%; background: var(--accent); border-radius: 2px; }
-    .conf-num { font-size: 12px; font-weight: 600; }
+    .conf-fill  { height: 100%; background: var(--accent); border-radius: 2px; }
+    .conf-num   { font-size: 12px; font-weight: 600; }
 
     .section-label {
       font-size: 11px; font-weight: 700; text-transform: uppercase;
       letter-spacing: 0.5px; color: var(--muted); margin-bottom: 12px;
     }
 
-    .error-msg {
-      background: rgba(239,68,68,0.1);
-      border: 1px solid rgba(239,68,68,0.3);
-      border-radius: 8px;
-      padding: 14px 16px;
-      color: #fca5a5;
-      font-size: 13px;
-      margin-top: 16px;
-    }
+    /* ── Status dots ─────────────────────────────────────────────────────────── */
 
-    .overall-score {
-      font-size: 28px; font-weight: 800; margin-bottom: 4px;
-    }
-    .overall-label { font-size: 12px; color: var(--muted); }
-
-    /* Per-workload status dots */
-    .card-dot {
-      width: 10px; height: 10px; border-radius: 50%;
-      flex-shrink: 0; margin-left: 6px;
-    }
+    .card-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-left: 6px; }
     .card-dot.pending  { background: var(--border); }
     .card-dot.running  { background: var(--accent); animation: dotpulse 1s ease-in-out infinite; }
     .card-dot.complete { background: var(--green); }
@@ -326,29 +406,6 @@
       0%, 100% { opacity: 1; transform: scale(1); }
       50%       { opacity: 0.35; transform: scale(0.75); }
     }
-
-    /* Step counter */
-    .step-counter {
-      display: flex; align-items: center; gap: 10px;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 16px;
-      font-size: 13px;
-      margin-top: 12px;
-    }
-    .step-counter .step-spinner {
-      width: 14px; height: 14px; border-radius: 50%;
-      border: 2px solid var(--border);
-      border-top-color: var(--accent);
-      animation: spin 0.8s linear infinite;
-      flex-shrink: 0;
-    }
-    .step-counter .step-spinner.done { border-color: var(--green); border-top-color: var(--green); animation: none; }
-    .step-counter .step-text { flex: 1; }
-    .step-counter .step-fraction { color: var(--muted); font-size: 12px; }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
@@ -361,108 +418,119 @@
 
 <main>
 
-  <div class="upload-zone" id="drop-zone">
-    <input type="file" id="video-input" accept="video/*" />
-    <div class="icon">🎬</div>
-    <h2>Drop egocentric video here</h2>
-    <p>MP4, MOV, AVI · First-person POV footage from frontline workers</p>
-    <div id="file-name"></div>
-  </div>
-
-  <div style="text-align:center">
-    <button class="btn" id="process-btn" disabled>
-      <span>▶</span> Run Full Intelligence Pipeline
-    </button>
-  </div>
-
-  <div class="progress-bar" id="progress-bar">
-    <div class="progress-fill" id="progress-fill"></div>
-  </div>
-  <div class="step-counter" id="step-counter" style="display:none">
-    <div class="step-spinner" id="step-spinner"></div>
-    <span class="step-text" id="step-text">Starting…</span>
-    <span class="step-fraction" id="step-fraction"></span>
-  </div>
-  <div class="status-msg" id="status-msg"></div>
-  <div class="error-msg" id="error-msg" style="display:none"></div>
-
-  <div class="results" id="results">
-
-    <div class="results-header">
-      <h2>Evidence Pack</h2>
-      <button class="btn btn-dl" id="download-btn" style="display:none">⬇ Download JSON</button>
+  <!-- ── Upload section ── -->
+  <div id="upload-section">
+    <div class="upload-zone" id="drop-zone">
+      <input type="file" id="video-input" accept="video/*" />
+      <div class="icon">🎬</div>
+      <h2>Drop egocentric video here</h2>
+      <p>MP4, MOV, AVI &middot; First-person POV footage from frontline workers</p>
+      <div id="file-name"></div>
     </div>
-
-    <!-- Workload 1: Compliance Gate -->
-    <div class="workload-grid">
-      <div class="workload-card">
-        <div class="card-header">
-          <div class="number">1</div>
-          <div>
-            <h3>Compliance Gate</h3>
-          </div>
-          <div class="sub">Pegasus 1.5 · Sync</div>
-          <span class="card-dot pending" id="dot-compliance"></span>
-        </div>
-        <div class="card-body">
-          <button class="prompt-toggle" onclick="togglePrompt('compliance-prompt')">
-            ▶ Show prompt
-          </button>
-          <div class="prompt-box" id="compliance-prompt"></div>
-
-          <div id="compliance-output"></div>
-        </div>
-      </div>
-
-      <!-- Workload 2: Quality Score -->
-      <div class="workload-card">
-        <div class="card-header">
-          <div class="number">2</div>
-          <div>
-            <h3>Quality Scoring</h3>
-          </div>
-          <div class="sub">Pegasus 1.5 · Sync</div>
-          <span class="card-dot pending" id="dot-quality"></span>
-        </div>
-        <div class="card-body">
-          <button class="prompt-toggle" onclick="togglePrompt('quality-prompt')">
-            ▶ Show prompt
-          </button>
-          <div class="prompt-box" id="quality-prompt"></div>
-
-          <div id="quality-output"></div>
-        </div>
-      </div>
-
-      <!-- Workload 3: Action Annotation -->
-      <div class="workload-card">
-        <div class="card-header">
-          <div class="number">3</div>
-          <div>
-            <h3>Action Annotation</h3>
-          </div>
-          <div class="sub">Pegasus 1.5 · Async TBM</div>
-          <span class="card-dot pending" id="dot-annotation"></span>
-        </div>
-        <div class="card-body">
-          <button class="prompt-toggle" onclick="togglePrompt('annotation-prompt')">
-            ▶ Show prompt
-          </button>
-          <div class="prompt-box" id="annotation-prompt"></div>
-
-          <div id="annotation-output"></div>
-        </div>
-      </div>
-
-    </div><!-- /workload-grid -->
-
-    <!-- Reviewer Summary -->
-    <div class="reviewer-box" id="reviewer-summary" style="margin-top:24px; display:none">
-      <strong>Reviewer Summary</strong>
-      <span id="reviewer-text"></span>
+    <div class="upload-actions">
+      <button class="btn" id="process-btn" disabled>
+        <span>&#9654;</span> Run Full Intelligence Pipeline
+      </button>
     </div>
+  </div>
 
-  </div><!-- /results -->
+  <!-- ── Processing view (split layout) ── -->
+  <div id="process-view" style="display:none">
+    <div class="split-layout">
+
+      <!-- Left: sticky video player -->
+      <div class="player-col">
+        <div class="player-wrap">
+          <video id="video-player" controls playsinline muted></video>
+          <div class="player-meta">
+            <span class="player-icon">&#127909;</span>
+            <span class="player-filename" id="player-file-name"></span>
+          </div>
+        </div>
+
+        <div class="progress-bar" id="progress-bar">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+
+        <div class="step-counter" id="step-counter" style="display:none">
+          <div class="step-spinner" id="step-spinner"></div>
+          <span class="step-text" id="step-text">Starting&hellip;</span>
+          <span class="step-fraction" id="step-fraction"></span>
+        </div>
+
+        <div class="status-msg" id="status-msg"></div>
+        <div class="error-msg" id="error-msg" style="display:none"></div>
+
+        <button class="btn-ghost" id="new-video-btn" onclick="resetForNewVideo()" style="display:none">
+          &#8592; New Video
+        </button>
+      </div>
+
+      <!-- Right: results -->
+      <div class="results-col">
+        <div class="results-header">
+          <h2>Evidence Pack</h2>
+          <button class="btn btn-dl" id="download-btn" style="display:none">&#8595; Download JSON</button>
+        </div>
+
+        <div class="workload-grid">
+
+          <!-- Workload 1: Compliance Gate -->
+          <div class="workload-card">
+            <div class="card-header">
+              <div class="number">1</div>
+              <div><h3>Compliance Gate</h3></div>
+              <div class="sub">Pegasus 1.5 &middot; Sync</div>
+              <span class="card-dot pending" id="dot-compliance"></span>
+            </div>
+            <div class="card-body">
+              <button class="prompt-toggle" onclick="togglePrompt('compliance-prompt')">&#9658; Show prompt</button>
+              <div class="prompt-box" id="compliance-prompt"></div>
+              <div id="compliance-output"></div>
+            </div>
+          </div>
+
+          <!-- Workload 2: Quality Score -->
+          <div class="workload-card">
+            <div class="card-header">
+              <div class="number">2</div>
+              <div><h3>Quality Scoring</h3></div>
+              <div class="sub">Pegasus 1.5 &middot; Sync</div>
+              <span class="card-dot pending" id="dot-quality"></span>
+            </div>
+            <div class="card-body">
+              <button class="prompt-toggle" onclick="togglePrompt('quality-prompt')">&#9658; Show prompt</button>
+              <div class="prompt-box" id="quality-prompt"></div>
+              <div id="quality-output"></div>
+            </div>
+          </div>
+
+          <!-- Workload 3: Action Annotation -->
+          <div class="workload-card">
+            <div class="card-header">
+              <div class="number">3</div>
+              <div><h3>Action Annotation</h3></div>
+              <div class="sub">Pegasus 1.5 &middot; Async TBM</div>
+              <span class="card-dot pending" id="dot-annotation"></span>
+            </div>
+            <div class="card-body">
+              <button class="prompt-toggle" onclick="togglePrompt('annotation-prompt')">&#9658; Show prompt</button>
+              <div class="prompt-box" id="annotation-prompt"></div>
+              <div id="annotation-output"></div>
+            </div>
+          </div>
+
+        </div><!-- /workload-grid -->
+
+        <div class="reviewer-box" id="reviewer-summary" style="display:none">
+          <strong>Reviewer Summary</strong>
+          <span id="reviewer-text"></span>
+        </div>
+      </div><!-- /results-col -->
+
+    </div><!-- /split-layout -->
+  </div><!-- /process-view -->
+
 </main>
 
 <script>
@@ -509,12 +577,12 @@ let currentVideoId = null;
 let pollInterval   = null;
 const rendered     = new Set();
 
-// ── File selection ────────────────────────────────────────────────────────────
+// ── File selection ─────────────────────────────────────────────────────────────
 
-const dropZone  = document.getElementById('drop-zone');
-const fileInput = document.getElementById('video-input');
+const dropZone   = document.getElementById('drop-zone');
+const fileInput  = document.getElementById('video-input');
 const processBtn = document.getElementById('process-btn');
-const fileName  = document.getElementById('file-name');
+const fileName   = document.getElementById('file-name');
 
 dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
@@ -526,28 +594,29 @@ dropZone.addEventListener('drop', e => {
 fileInput.addEventListener('change', () => { if (fileInput.files[0]) setFile(fileInput.files[0]); });
 
 function setFile(file) {
-  fileName.textContent = `📎 ${file.name}`;
+  fileName.textContent = '📎 ' + file.name;
   processBtn.disabled = false;
   window._selectedFile = file;
+  if (window._videoURL) URL.revokeObjectURL(window._videoURL);
+  window._videoURL = URL.createObjectURL(file);
 }
 
-// ── Prompts ───────────────────────────────────────────────────────────────────
+// ── Prompts ────────────────────────────────────────────────────────────────────
 
-document.getElementById('compliance-prompt').textContent  = PROMPTS.compliance;
-document.getElementById('quality-prompt').textContent     = PROMPTS.quality;
-document.getElementById('annotation-prompt').textContent  = PROMPTS.annotation;
+document.getElementById('compliance-prompt').textContent = PROMPTS.compliance;
+document.getElementById('quality-prompt').textContent    = PROMPTS.quality;
+document.getElementById('annotation-prompt').textContent = PROMPTS.annotation;
 
 function togglePrompt(id) {
   const box = document.getElementById(id);
   const btn = box.previousElementSibling;
   box.classList.toggle('open');
-  btn.textContent = box.classList.contains('open') ? '▼ Hide prompt' : '▶ Show prompt';
+  btn.textContent = box.classList.contains('open') ? '▼ Hide prompt' : '► Show prompt';
 }
 
-// ── UI helpers ────────────────────────────────────────────────────────────────
+// ── UI helpers ─────────────────────────────────────────────────────────────────
 
 function setUploadProgress(msg, pct) {
-  document.getElementById('status-msg').textContent = '';
   const bar  = document.getElementById('progress-bar');
   const fill = document.getElementById('progress-fill');
   bar.classList.add('active');
@@ -562,7 +631,7 @@ function showStepCounter(text, fraction, done = false) {
   document.getElementById('step-fraction').textContent = fraction;
   document.getElementById('step-spinner').className    = 'step-spinner' + (done ? ' done' : '');
   document.getElementById('progress-bar').classList.remove('active');
-  document.getElementById('status-msg').textContent = '';
+  document.getElementById('status-msg').textContent    = '';
 }
 
 function showError(msg) {
@@ -571,29 +640,49 @@ function showError(msg) {
   el.style.display = 'block';
 }
 
+function setDot(name, state) {
+  const dot = document.getElementById('dot-' + name);
+  if (dot) dot.className = 'card-dot ' + state;
+}
+
 function resetUI() {
   rendered.clear();
-  document.getElementById('error-msg').style.display   = 'none';
-  document.getElementById('step-counter').style.display = 'none';
+  document.getElementById('error-msg').style.display        = 'none';
+  document.getElementById('step-counter').style.display     = 'none';
   document.getElementById('reviewer-summary').style.display = 'none';
-  document.getElementById('download-btn').style.display = 'none';
-  document.getElementById('compliance-output').innerHTML = '';
-  document.getElementById('quality-output').innerHTML    = '';
-  document.getElementById('annotation-output').innerHTML = '';
+  document.getElementById('download-btn').style.display     = 'none';
+  document.getElementById('new-video-btn').style.display    = 'none';
+  document.getElementById('compliance-output').innerHTML    = '';
+  document.getElementById('quality-output').innerHTML       = '';
+  document.getElementById('annotation-output').innerHTML    = '';
+  document.getElementById('status-msg').textContent         = '';
+  document.getElementById('progress-bar').classList.remove('active');
   ['compliance', 'quality', 'annotation'].forEach(n => setDot(n, 'pending'));
 }
 
-function setDot(name, state) {
-  const dot = document.getElementById(`dot-${name}`);
-  if (dot) dot.className = `card-dot ${state}`;
+function resetForNewVideo() {
+  stopPolling();
+  resetUI();
+  const vp = document.getElementById('video-player');
+  vp.pause();
+  vp.src = '';
+  vp.load();
+  document.getElementById('process-view').style.display    = 'none';
+  document.getElementById('upload-section').style.display  = 'block';
+  document.getElementById('file-name').textContent         = '';
+  fileInput.value = '';
+  window._selectedFile = null;
+  if (window._videoURL) { URL.revokeObjectURL(window._videoURL); window._videoURL = null; }
+  processBtn.disabled = true;
+  currentVideoId = null;
 }
 
-// ── Polling ───────────────────────────────────────────────────────────────────
+// ── Polling ────────────────────────────────────────────────────────────────────
 
 function startPolling(videoId) {
   if (pollInterval) clearInterval(pollInterval);
   pollInterval = setInterval(() => poll(videoId), 3000);
-  poll(videoId); // immediate first tick
+  poll(videoId);
 }
 
 function stopPolling() {
@@ -602,7 +691,7 @@ function stopPolling() {
 
 async function poll(videoId) {
   try {
-    const resp = await fetch(`/api/status/${videoId}`);
+    const resp = await fetch('/api/status/' + videoId);
     const job  = await resp.json();
     if (!resp.ok) throw new Error(job.error || 'Status check failed');
     handleJobUpdate(job);
@@ -617,24 +706,24 @@ function handleJobUpdate(job) {
   const steps   = job.steps || {};
   const stepNum = job.current_step || 1;
 
-  // Update step counter and dots
   if (job.status === 'complete') {
     showStepCounter('All workloads complete — evidence pack ready', '', true);
     stopPolling();
     processBtn.disabled = false;
+    document.getElementById('new-video-btn').style.display = 'flex';
   } else if (job.status === 'error') {
     showStepCounter('Pipeline failed', '', true);
     showError('Error: ' + (job.error || 'unknown'));
     stopPolling();
     processBtn.disabled = false;
+    document.getElementById('new-video-btn').style.display = 'flex';
     return;
   } else {
     const runningName = Object.keys(steps).find(n => steps[n].status === 'running');
     const label = runningName ? STEP_NAMES[runningName] : 'Starting…';
-    showStepCounter(label + ' running…', `Step ${stepNum} of 3`);
+    showStepCounter(label + ' running…', 'Step ' + stepNum + ' of 3');
   }
 
-  // Render each completed workload exactly once
   for (const [name, step] of Object.entries(steps)) {
     setDot(name, step.status);
     if (step.status === 'complete' && !rendered.has(name)) {
@@ -645,7 +734,6 @@ function handleJobUpdate(job) {
     }
   }
 
-  // Final: show reviewer summary + download button
   if (job.status === 'complete' && job.evidence_pack) {
     document.getElementById('reviewer-text').textContent       = job.evidence_pack.reviewer_summary;
     document.getElementById('reviewer-summary').style.display = 'block';
@@ -653,19 +741,27 @@ function handleJobUpdate(job) {
   }
 }
 
-// ── Submit ────────────────────────────────────────────────────────────────────
+// ── Submit ─────────────────────────────────────────────────────────────────────
 
 processBtn.addEventListener('click', async () => {
   if (!window._selectedFile) return;
 
   resetUI();
-  document.getElementById('results').classList.add('show');
+
+  // Transition to split layout
+  document.getElementById('upload-section').style.display = 'none';
+  document.getElementById('process-view').style.display   = 'block';
+
+  const vp = document.getElementById('video-player');
+  vp.src = window._videoURL;
+  vp.load();
+  document.getElementById('player-file-name').textContent = window._selectedFile.name;
+
   processBtn.disabled = true;
+  setUploadProgress('Uploading to S3…', 40);
 
   const form = new FormData();
   form.append('video', window._selectedFile);
-
-  setUploadProgress('Uploading to S3…', 40);
 
   try {
     const resp = await fetch('/api/process', { method: 'POST', body: form });
@@ -678,11 +774,24 @@ processBtn.addEventListener('click', async () => {
     showError('Error: ' + err.message);
     document.getElementById('progress-bar').classList.remove('active');
     document.getElementById('status-msg').textContent = '';
+    document.getElementById('new-video-btn').style.display = 'flex';
     processBtn.disabled = false;
   }
 });
 
-// ── Render functions ──────────────────────────────────────────────────────────
+// ── Video seek helper ──────────────────────────────────────────────────────────
+
+function seekVideo(sec) {
+  const vp = document.getElementById('video-player');
+  if (!vp || !vp.src) return;
+  vp.currentTime = sec;
+  vp.play().catch(() => {});
+  if (window.innerWidth <= 900) {
+    vp.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
+// ── Render functions ───────────────────────────────────────────────────────────
 
 function dispositionClass(d) {
   if (!d) return '';
@@ -693,12 +802,12 @@ function dispositionClass(d) {
 }
 
 const CAT_LABELS = {
-  minors_in_frame:        'Minors in Frame',
-  pii_sensitive_surfaces: 'PII / Sensitive Surfaces',
+  minors_in_frame:          'Minors in Frame',
+  pii_sensitive_surfaces:   'PII / Sensitive Surfaces',
   profanity_hostile_speech: 'Profanity / Hostile Speech',
-  unsafe_acts:            'Unsafe Acts',
-  competitor_ip:          'Competitor IP',
-  health_related_activity:'Health-Related Activity',
+  unsafe_acts:              'Unsafe Acts',
+  competitor_ip:            'Competitor IP',
+  health_related_activity:  'Health-Related Activity',
 };
 
 function renderCompliance(c) {
@@ -707,63 +816,63 @@ function renderCompliance(c) {
   const disp = c.disposition || 'UNKNOWN';
   const conf = c.confidence ?? 0;
 
-  let html = `<div class="pill ${dispositionClass(disp)}">${disp}</div>`;
-  html += `<div class="confidence-bar"><label>Confidence</label><div class="conf-track"><div class="conf-fill" style="width:${Math.round(conf*100)}%"></div></div><span class="conf-num">${Math.round(conf*100)}%</span></div>`;
-  html += `<div style="margin:16px 0 10px" class="section-label">Category Results</div><div class="cat-grid">`;
+  let html = '<div class="pill ' + dispositionClass(disp) + '">' + disp + '</div>';
+  html += '<div class="confidence-bar"><label>Confidence</label><div class="conf-track"><div class="conf-fill" style="width:' + Math.round(conf * 100) + '%"></div></div><span class="conf-num">' + Math.round(conf * 100) + '%</span></div>';
+  html += '<div style="margin:16px 0 10px" class="section-label">Category Results</div><div class="cat-grid">';
 
   for (const [key, result] of Object.entries(c.categories || {})) {
-    const status = result.status || 'CLEAR';
-    const cls    = status === 'FLAGGED' ? 'flagged' : status === 'UNCERTAIN' ? 'uncertain' : '';
-    const dotCls = status === 'FLAGGED' ? 'dot-flagged' : status === 'UNCERTAIN' ? 'dot-uncertain' : 'dot-clear';
+    const status  = result.status || 'CLEAR';
+    const cls     = status === 'FLAGGED' ? 'flagged' : status === 'UNCERTAIN' ? 'uncertain' : '';
+    const dotCls  = status === 'FLAGGED' ? 'dot-flagged' : status === 'UNCERTAIN' ? 'dot-uncertain' : 'dot-clear';
     const evidence = result.evidence || '';
-    const severity = result.severity ? ` · ${result.severity}` : '';
-    html += `<div class="cat-item ${cls}">
-      <div class="cat-name">${CAT_LABELS[key] || key}</div>
-      <div class="cat-status"><span class="dot ${dotCls}"></span>${status}${severity}</div>
-      ${evidence ? `<div class="cat-evidence">${evidence}</div>` : ''}
-    </div>`;
+    const severity = result.severity ? ' &middot; ' + result.severity : '';
+    html += '<div class="cat-item ' + cls + '">' +
+      '<div class="cat-name">' + (CAT_LABELS[key] || key) + '</div>' +
+      '<div class="cat-status"><span class="dot ' + dotCls + '"></span>' + status + severity + '</div>' +
+      (evidence ? '<div class="cat-evidence">' + evidence + '</div>' : '') +
+      '</div>';
   }
-  html += `</div>`;
+  html += '</div>';
   if (c.reviewer_summary) {
-    html += `<div class="reviewer-box" style="margin-top:16px"><strong>Compliance Summary</strong>${c.reviewer_summary}</div>`;
+    html += '<div class="reviewer-box" style="margin-top:16px"><strong>Compliance Summary</strong>' + c.reviewer_summary + '</div>';
   }
   document.getElementById('compliance-output').innerHTML = html;
 }
 
 const DIM_LABELS = {
-  framing_stability:    'Framing Stability',
-  action_visibility:    'Action Visibility',
-  task_completeness:    'Task Completeness',
-  audio_intelligibility:'Audio Intelligibility',
-  lighting_adequacy:    'Lighting Adequacy',
+  framing_stability:     'Framing Stability',
+  action_visibility:     'Action Visibility',
+  task_completeness:     'Task Completeness',
+  audio_intelligibility: 'Audio Intelligibility',
+  lighting_adequacy:     'Lighting Adequacy',
 };
 
 function renderQuality(q) {
   if (!q) { document.getElementById('quality-output').innerHTML = '<p style="color:var(--muted)">No data</p>'; return; }
 
   const verdict = q.verdict || 'UNKNOWN';
-  let html = `<div class="pill ${dispositionClass(verdict)}">${verdict}</div>`;
-  html += `<div class="section-label">Dimension Scores</div><div class="dim-list">`;
+  let html = '<div class="pill ' + dispositionClass(verdict) + '">' + verdict + '</div>';
+  html += '<div class="section-label">Dimension Scores</div><div class="dim-list">';
 
   for (const [key, dim] of Object.entries(q.dimensions || {})) {
     const s = dim.score || 0;
-    html += `<div class="dim-item">
-      <div class="dim-row">
-        <span class="dim-name">${DIM_LABELS[key] || key}</span>
-        <div class="score-bar"><div class="score-fill s${s}"></div></div>
-        <span class="score-num">${s}/5</span>
-      </div>
-      <div class="dim-explanation">${dim.explanation || ''}</div>
-    </div>`;
+    html += '<div class="dim-item">' +
+      '<div class="dim-row">' +
+        '<span class="dim-name">' + (DIM_LABELS[key] || key) + '</span>' +
+        '<div class="score-bar"><div class="score-fill s' + s + '"></div></div>' +
+        '<span class="score-num">' + s + '/5</span>' +
+      '</div>' +
+      '<div class="dim-explanation">' + (dim.explanation || '') + '</div>' +
+      '</div>';
   }
-  html += `</div>`;
+  html += '</div>';
   document.getElementById('quality-output').innerHTML = html;
 }
 
 function fmtTime(sec) {
   if (sec == null) return '—';
   const s = Math.round(sec);
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
 }
 
 function renderAnnotation(segments) {
@@ -772,8 +881,8 @@ function renderAnnotation(segments) {
     return;
   }
 
-  let html = `<div class="section-label">${segments.length} Action Segment${segments.length > 1 ? 's' : ''}</div>`;
-  html += `<div class="segment-list">`;
+  let html = '<div class="section-label">' + segments.length + ' Action Segment' + (segments.length > 1 ? 's' : '') + '</div>';
+  html += '<div class="segment-list">';
 
   for (const seg of segments) {
     const meta    = seg.metadata || {};
@@ -785,31 +894,37 @@ function renderAnnotation(segments) {
     const noun     = meta.noun || '';
     const hand     = meta.hand || '';
     const conf     = meta.confidence || 'MEDIUM';
+    const confColor = conf === 'HIGH' ? 'var(--green)' : conf === 'LOW' ? 'var(--yellow)' : 'var(--muted)';
 
-    html += `<div class="segment-item ${lowConf ? 'low-conf' : ''}">
-      <div>
-        <div class="seg-time">${fmtTime(start)}</div>
-        <div class="seg-end-time">→ ${fmtTime(end)}</div>
-      </div>
-      <div>
-        <div class="seg-title">${meta.title || 'Unnamed Action'}</div>
-        <div class="seg-desc">${meta.description || ''}</div>
-        <div class="seg-meta">
-          ${taskType ? `<span class="tag">${taskType}</span>` : ''}
-          ${verb && noun ? `<span class="tag">${verb} ${noun}</span>` : ''}
-          ${hand ? `<span class="tag hand">${hand}</span>` : ''}
-          ${lowConf ? `<span class="tag low">⚠ LOW CONF</span>` : ''}
-        </div>
-      </div>
-      <div class="seg-conf" style="color:${conf==='HIGH'?'var(--green)':conf==='LOW'?'var(--yellow)':'var(--muted)'}; font-size:11px; font-weight:700;">${conf}</div>
-    </div>`;
+    const startStr = fmtTime(start);
+    const seekAttr = start != null ? ' onclick="seekVideo(' + start + ')" title="Jump to ' + startStr + '"' : '';
+
+    html += '<div class="segment-item' + (lowConf ? ' low-conf' : '') + '">' +
+      '<div>' +
+        (start != null
+          ? '<button class="seg-time-btn"' + seekAttr + '>' + startStr + '</button>'
+          : '<span class="seg-time-btn" style="cursor:default">' + startStr + '</span>') +
+        '<div class="seg-end-time">→ ' + fmtTime(end) + '</div>' +
+      '</div>' +
+      '<div>' +
+        '<div class="seg-title">' + (meta.title || 'Unnamed Action') + '</div>' +
+        '<div class="seg-desc">' + (meta.description || '') + '</div>' +
+        '<div class="seg-meta">' +
+          (taskType ? '<span class="tag">' + taskType + '</span>' : '') +
+          (verb && noun ? '<span class="tag">' + verb + ' ' + noun + '</span>' : '') +
+          (hand ? '<span class="tag hand">' + hand + '</span>' : '') +
+          (lowConf ? '<span class="tag low">⚠ LOW CONF</span>' : '') +
+        '</div>' +
+      '</div>' +
+      '<div class="seg-conf" style="color:' + confColor + ';font-size:11px;font-weight:700">' + conf + '</div>' +
+      '</div>';
   }
-  html += `</div>`;
+  html += '</div>';
   document.getElementById('annotation-output').innerHTML = html;
 }
 
 document.getElementById('download-btn').addEventListener('click', () => {
-  if (currentVideoId) window.location.href = `/api/download/${currentVideoId}`;
+  if (currentVideoId) window.location.href = '/api/download/' + currentVideoId;
 });
 </script>
 </body>
