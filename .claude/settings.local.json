@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('mcpServers', {}\\), indent=2\\)\\)\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('mcpServers', {}\\), indent=2\\)\\)\")",
+      "Bash(curl *)",
+      "mcp__plugin_twelvelabs_twelvelabs-mcp__sync-analyse-video",
+      "mcp__plugin_twelvelabs_twelvelabs-mcp__start-video-indexing-task",
+      "mcp__plugin_twelvelabs_twelvelabs-mcp__get-indexed-asset",
+      "Bash(PATH=\"/opt/homebrew/bin:$PATH\" sam deploy *)",
+      "Bash(aws s3 ls *)",
+      "Bash(aws s3api *)",
+      "mcp__plugin_twelvelabs_twelvelabs-mcp__list-indexes",
+      "Bash(PATH=/opt/homebrew/bin:__TRACKED_VAR__ sam build)",
+      "Bash(sam deploy *)"
+    ]
+  }
+}

@@ -312,6 +312,43 @@
       font-size: 28px; font-weight: 800; margin-bottom: 4px;
     }
     .overall-label { font-size: 12px; color: var(--muted); }
+
+    /* Per-workload status dots */
+    .card-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      flex-shrink: 0; margin-left: 6px;
+    }
+    .card-dot.pending  { background: var(--border); }
+    .card-dot.running  { background: var(--accent); animation: dotpulse 1s ease-in-out infinite; }
+    .card-dot.complete { background: var(--green); }
+
+    @keyframes dotpulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.35; transform: scale(0.75); }
+    }
+
+    /* Step counter */
+    .step-counter {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 13px;
+      margin-top: 12px;
+    }
+    .step-counter .step-spinner {
+      width: 14px; height: 14px; border-radius: 50%;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      animation: spin 0.8s linear infinite;
+      flex-shrink: 0;
+    }
+    .step-counter .step-spinner.done { border-color: var(--green); border-top-color: var(--green); animation: none; }
+    .step-counter .step-text { flex: 1; }
+    .step-counter .step-fraction { color: var(--muted); font-size: 12px; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
@@ -341,6 +378,11 @@
   <div class="progress-bar" id="progress-bar">
     <div class="progress-fill" id="progress-fill"></div>
   </div>
+  <div class="step-counter" id="step-counter" style="display:none">
+    <div class="step-spinner" id="step-spinner"></div>
+    <span class="step-text" id="step-text">Starting…</span>
+    <span class="step-fraction" id="step-fraction"></span>
+  </div>
   <div class="status-msg" id="status-msg"></div>
   <div class="error-msg" id="error-msg" style="display:none"></div>
 
@@ -348,7 +390,7 @@
 
     <div class="results-header">
       <h2>Evidence Pack</h2>
-      <button class="btn btn-dl" id="download-btn">⬇ Download JSON</button>
+      <button class="btn btn-dl" id="download-btn" style="display:none">⬇ Download JSON</button>
     </div>
 
     <!-- Workload 1: Compliance Gate -->
@@ -360,6 +402,7 @@
             <h3>Compliance Gate</h3>
           </div>
           <div class="sub">Pegasus 1.5 · Sync</div>
+          <span class="card-dot pending" id="dot-compliance"></span>
         </div>
         <div class="card-body">
           <button class="prompt-toggle" onclick="togglePrompt('compliance-prompt')">
@@ -379,6 +422,7 @@
             <h3>Quality Scoring</h3>
           </div>
           <div class="sub">Pegasus 1.5 · Sync</div>
+          <span class="card-dot pending" id="dot-quality"></span>
         </div>
         <div class="card-body">
           <button class="prompt-toggle" onclick="togglePrompt('quality-prompt')">
@@ -398,6 +442,7 @@
             <h3>Action Annotation</h3>
           </div>
           <div class="sub">Pegasus 1.5 · Async TBM</div>
+          <span class="card-dot pending" id="dot-annotation"></span>
         </div>
         <div class="card-body">
           <button class="prompt-toggle" onclick="togglePrompt('annotation-prompt')">
@@ -454,13 +499,22 @@ confidence (HIGH/MEDIUM/LOW), description.
 LOW confidence flagged for human review.`,
 };
 
-let currentVideoId = null;
+const STEP_NAMES = {
+  compliance: 'Compliance Gate',
+  quality:    'Quality Scoring',
+  annotation: 'Action Annotation',
+};
 
-// Drag & drop
-const dropZone = document.getElementById('drop-zone');
+let currentVideoId = null;
+let pollInterval   = null;
+const rendered     = new Set();
+
+// ── File selection ────────────────────────────────────────────────────────────
+
+const dropZone  = document.getElementById('drop-zone');
 const fileInput = document.getElementById('video-input');
 const processBtn = document.getElementById('process-btn');
-const fileName = document.getElementById('file-name');
+const fileName  = document.getElementById('file-name');
 
 dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
@@ -469,22 +523,19 @@ dropZone.addEventListener('drop', e => {
   dropZone.classList.remove('drag');
   if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
 });
-
-fileInput.addEventListener('change', () => {
-  if (fileInput.files[0]) setFile(fileInput.files[0]);
-});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) setFile(fileInput.files[0]); });
 
 function setFile(file) {
   fileName.textContent = `📎 ${file.name}`;
   processBtn.disabled = false;
-  processBtn.dataset.file = true;
   window._selectedFile = file;
 }
 
-// Populate prompts
-document.getElementById('compliance-prompt').textContent = PROMPTS.compliance;
-document.getElementById('quality-prompt').textContent = PROMPTS.quality;
-document.getElementById('annotation-prompt').textContent = PROMPTS.annotation;
+// ── Prompts ───────────────────────────────────────────────────────────────────
+
+document.getElementById('compliance-prompt').textContent  = PROMPTS.compliance;
+document.getElementById('quality-prompt').textContent     = PROMPTS.quality;
+document.getElementById('annotation-prompt').textContent  = PROMPTS.annotation;
 
 function togglePrompt(id) {
   const box = document.getElementById(id);
@@ -493,12 +544,25 @@ function togglePrompt(id) {
   btn.textContent = box.classList.contains('open') ? '▼ Hide prompt' : '▶ Show prompt';
 }
 
-function setStatus(msg, pct) {
-  document.getElementById('status-msg').textContent = msg;
-  const bar = document.getElementById('progress-bar');
+// ── UI helpers ────────────────────────────────────────────────────────────────
+
+function setUploadProgress(msg, pct) {
+  document.getElementById('status-msg').textContent = '';
+  const bar  = document.getElementById('progress-bar');
   const fill = document.getElementById('progress-fill');
   bar.classList.add('active');
   fill.style.width = pct + '%';
+  document.getElementById('status-msg').textContent = msg;
+}
+
+function showStepCounter(text, fraction, done = false) {
+  const el = document.getElementById('step-counter');
+  el.style.display = 'flex';
+  document.getElementById('step-text').textContent     = text;
+  document.getElementById('step-fraction').textContent = fraction;
+  document.getElementById('step-spinner').className    = 'step-spinner' + (done ? ' done' : '');
+  document.getElementById('progress-bar').classList.remove('active');
+  document.getElementById('status-msg').textContent = '';
 }
 
 function showError(msg) {
@@ -507,54 +571,118 @@ function showError(msg) {
   el.style.display = 'block';
 }
 
+function resetUI() {
+  rendered.clear();
+  document.getElementById('error-msg').style.display   = 'none';
+  document.getElementById('step-counter').style.display = 'none';
+  document.getElementById('reviewer-summary').style.display = 'none';
+  document.getElementById('download-btn').style.display = 'none';
+  document.getElementById('compliance-output').innerHTML = '';
+  document.getElementById('quality-output').innerHTML    = '';
+  document.getElementById('annotation-output').innerHTML = '';
+  ['compliance', 'quality', 'annotation'].forEach(n => setDot(n, 'pending'));
+}
+
+function setDot(name, state) {
+  const dot = document.getElementById(`dot-${name}`);
+  if (dot) dot.className = `card-dot ${state}`;
+}
+
+// ── Polling ───────────────────────────────────────────────────────────────────
+
+function startPolling(videoId) {
+  if (pollInterval) clearInterval(pollInterval);
+  pollInterval = setInterval(() => poll(videoId), 3000);
+  poll(videoId); // immediate first tick
+}
+
+function stopPolling() {
+  if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+}
+
+async function poll(videoId) {
+  try {
+    const resp = await fetch(`/api/status/${videoId}`);
+    const job  = await resp.json();
+    if (!resp.ok) throw new Error(job.error || 'Status check failed');
+    handleJobUpdate(job);
+  } catch (err) {
+    stopPolling();
+    showError('Polling error: ' + err.message);
+    processBtn.disabled = false;
+  }
+}
+
+function handleJobUpdate(job) {
+  const steps   = job.steps || {};
+  const stepNum = job.current_step || 1;
+
+  // Update step counter and dots
+  if (job.status === 'complete') {
+    showStepCounter('All workloads complete — evidence pack ready', '', true);
+    stopPolling();
+    processBtn.disabled = false;
+  } else if (job.status === 'error') {
+    showStepCounter('Pipeline failed', '', true);
+    showError('Error: ' + (job.error || 'unknown'));
+    stopPolling();
+    processBtn.disabled = false;
+    return;
+  } else {
+    const runningName = Object.keys(steps).find(n => steps[n].status === 'running');
+    const label = runningName ? STEP_NAMES[runningName] : 'Starting…';
+    showStepCounter(label + ' running…', `Step ${stepNum} of 3`);
+  }
+
+  // Render each completed workload exactly once
+  for (const [name, step] of Object.entries(steps)) {
+    setDot(name, step.status);
+    if (step.status === 'complete' && !rendered.has(name)) {
+      rendered.add(name);
+      if (name === 'compliance') renderCompliance(step.result);
+      else if (name === 'quality') renderQuality(step.result);
+      else if (name === 'annotation') renderAnnotation((step.result || {}).segments || []);
+    }
+  }
+
+  // Final: show reviewer summary + download button
+  if (job.status === 'complete' && job.evidence_pack) {
+    document.getElementById('reviewer-text').textContent       = job.evidence_pack.reviewer_summary;
+    document.getElementById('reviewer-summary').style.display = 'block';
+    document.getElementById('download-btn').style.display      = '';
+  }
+}
+
+// ── Submit ────────────────────────────────────────────────────────────────────
+
 processBtn.addEventListener('click', async () => {
   if (!window._selectedFile) return;
-  document.getElementById('error-msg').style.display = 'none';
-  document.getElementById('results').classList.remove('show');
+
+  resetUI();
+  document.getElementById('results').classList.add('show');
   processBtn.disabled = true;
 
   const form = new FormData();
   form.append('video', window._selectedFile);
 
-  setStatus('Uploading to S3…', 15);
+  setUploadProgress('Uploading to S3…', 40);
 
   try {
-    setStatus('Running Compliance Gate…', 30);
     const resp = await fetch('/api/process', { method: 'POST', body: form });
-    setStatus('Running Quality Scoring…', 55);
-    // (server runs all three sequentially; we animate client-side)
-    await new Promise(r => setTimeout(r, 800));
-    setStatus('Running Action Annotation (async TBM)…', 75);
-    await new Promise(r => setTimeout(r, 600));
-    setStatus('Assembling evidence pack…', 90);
-
     const data = await resp.json();
-    if (!resp.ok) throw new Error(data.error || 'Processing failed');
+    if (!resp.ok) throw new Error(data.error || 'Failed to start pipeline');
 
-    setStatus('Complete', 100);
-    renderResults(data);
+    currentVideoId = data.video_id;
+    startPolling(data.video_id);
   } catch (err) {
     showError('Error: ' + err.message);
-    setStatus('', 0);
     document.getElementById('progress-bar').classList.remove('active');
-  } finally {
+    document.getElementById('status-msg').textContent = '';
     processBtn.disabled = false;
   }
 });
 
-function renderResults(data) {
-  const pack = data.evidence_pack;
-  currentVideoId = data.video_id;
-
-  renderCompliance(pack.compliance_gate);
-  renderQuality(pack.quality_score);
-  renderAnnotation(pack.action_segments);
-
-  document.getElementById('reviewer-text').textContent = pack.reviewer_summary;
-  document.getElementById('reviewer-summary').style.display = 'block';
-
-  document.getElementById('results').classList.add('show');
-}
+// ── Render functions ──────────────────────────────────────────────────────────
 
 function dispositionClass(d) {
   if (!d) return '';
@@ -565,29 +693,27 @@ function dispositionClass(d) {
 }
 
 const CAT_LABELS = {
-  minors_in_frame: 'Minors in Frame',
+  minors_in_frame:        'Minors in Frame',
   pii_sensitive_surfaces: 'PII / Sensitive Surfaces',
   profanity_hostile_speech: 'Profanity / Hostile Speech',
-  unsafe_acts: 'Unsafe Acts',
-  competitor_ip: 'Competitor IP',
-  health_related_activity: 'Health-Related Activity',
+  unsafe_acts:            'Unsafe Acts',
+  competitor_ip:          'Competitor IP',
+  health_related_activity:'Health-Related Activity',
 };
 
 function renderCompliance(c) {
   if (!c) { document.getElementById('compliance-output').innerHTML = '<p style="color:var(--muted)">No data</p>'; return; }
 
   const disp = c.disposition || 'UNKNOWN';
-  const dispCls = dispositionClass(disp);
   const conf = c.confidence ?? 0;
 
-  let html = `<div class="pill ${dispCls}">${disp}</div>`;
+  let html = `<div class="pill ${dispositionClass(disp)}">${disp}</div>`;
   html += `<div class="confidence-bar"><label>Confidence</label><div class="conf-track"><div class="conf-fill" style="width:${Math.round(conf*100)}%"></div></div><span class="conf-num">${Math.round(conf*100)}%</span></div>`;
-  html += `<div style="margin:16px 0 10px" class="section-label">Category Results</div>`;
-  html += `<div class="cat-grid">`;
+  html += `<div style="margin:16px 0 10px" class="section-label">Category Results</div><div class="cat-grid">`;
 
   for (const [key, result] of Object.entries(c.categories || {})) {
     const status = result.status || 'CLEAR';
-    const cls = status === 'FLAGGED' ? 'flagged' : status === 'UNCERTAIN' ? 'uncertain' : '';
+    const cls    = status === 'FLAGGED' ? 'flagged' : status === 'UNCERTAIN' ? 'uncertain' : '';
     const dotCls = status === 'FLAGGED' ? 'dot-flagged' : status === 'UNCERTAIN' ? 'dot-uncertain' : 'dot-clear';
     const evidence = result.evidence || '';
     const severity = result.severity ? ` · ${result.severity}` : '';
@@ -598,31 +724,26 @@ function renderCompliance(c) {
     </div>`;
   }
   html += `</div>`;
-
   if (c.reviewer_summary) {
     html += `<div class="reviewer-box" style="margin-top:16px"><strong>Compliance Summary</strong>${c.reviewer_summary}</div>`;
   }
-
   document.getElementById('compliance-output').innerHTML = html;
 }
 
 const DIM_LABELS = {
-  framing_stability: 'Framing Stability',
-  action_visibility: 'Action Visibility',
-  task_completeness: 'Task Completeness',
-  audio_intelligibility: 'Audio Intelligibility',
-  lighting_adequacy: 'Lighting Adequacy',
+  framing_stability:    'Framing Stability',
+  action_visibility:    'Action Visibility',
+  task_completeness:    'Task Completeness',
+  audio_intelligibility:'Audio Intelligibility',
+  lighting_adequacy:    'Lighting Adequacy',
 };
 
 function renderQuality(q) {
   if (!q) { document.getElementById('quality-output').innerHTML = '<p style="color:var(--muted)">No data</p>'; return; }
 
   const verdict = q.verdict || 'UNKNOWN';
-  const overall = q.overall_score ?? 0;
-
   let html = `<div class="pill ${dispositionClass(verdict)}">${verdict}</div>`;
-  html += `<div class="section-label">Dimension Scores</div>`;
-  html += `<div class="dim-list">`;
+  html += `<div class="section-label">Dimension Scores</div><div class="dim-list">`;
 
   for (const [key, dim] of Object.entries(q.dimensions || {})) {
     const s = dim.score || 0;
@@ -636,16 +757,13 @@ function renderQuality(q) {
     </div>`;
   }
   html += `</div>`;
-
   document.getElementById('quality-output').innerHTML = html;
 }
 
 function fmtTime(sec) {
   if (sec == null) return '—';
   const s = Math.round(sec);
-  const m = Math.floor(s / 60);
-  const ss = String(s % 60).padStart(2, '0');
-  return `${m}:${ss}`;
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
 function renderAnnotation(segments) {
@@ -658,14 +776,15 @@ function renderAnnotation(segments) {
   html += `<div class="segment-list">`;
 
   for (const seg of segments) {
-    const lowConf = seg.confidence === 'LOW';
-    const start = seg.start_time ?? seg.start ?? null;
-    const end = seg.end_time ?? seg.end ?? null;
-    const taskType = seg.task_type || '';
-    const verb = seg.verb || '';
-    const noun = seg.noun || '';
-    const hand = seg.hand || '';
-    const conf = seg.confidence || 'MEDIUM';
+    const meta    = seg.metadata || {};
+    const lowConf = meta.confidence === 'LOW';
+    const start   = seg.start_time ?? seg.start ?? null;
+    const end     = seg.end_time   ?? seg.end   ?? null;
+    const taskType = meta.task_type || '';
+    const verb     = meta.verb || '';
+    const noun     = meta.noun || '';
+    const hand     = meta.hand || '';
+    const conf     = meta.confidence || 'MEDIUM';
 
     html += `<div class="segment-item ${lowConf ? 'low-conf' : ''}">
       <div>
@@ -673,8 +792,8 @@ function renderAnnotation(segments) {
         <div class="seg-end-time">→ ${fmtTime(end)}</div>
       </div>
       <div>
-        <div class="seg-title">${seg.title || 'Unnamed Action'}</div>
-        <div class="seg-desc">${seg.description || ''}</div>
+        <div class="seg-title">${meta.title || 'Unnamed Action'}</div>
+        <div class="seg-desc">${meta.description || ''}</div>
         <div class="seg-meta">
           ${taskType ? `<span class="tag">${taskType}</span>` : ''}
           ${verb && noun ? `<span class="tag">${verb} ${noun}</span>` : ''}
@@ -686,13 +805,11 @@ function renderAnnotation(segments) {
     </div>`;
   }
   html += `</div>`;
-
   document.getElementById('annotation-output').innerHTML = html;
 }
 
 document.getElementById('download-btn').addEventListener('click', () => {
-  if (!currentVideoId) return;
-  window.location.href = `/api/download/${currentVideoId}`;
+  if (currentVideoId) window.location.href = `/api/download/${currentVideoId}`;
 });
 </script>
 </body>
