@@ -16,3 +16,5 @@ uploads/
 *.mov
 *.avi
 .aws-sam/
+.claude/
+aws-sam-cli.pkg
