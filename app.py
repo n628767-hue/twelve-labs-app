@@ -19,6 +19,16 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 jobs: dict = {}  # video_id -> job state dict
 
 
+@app.errorhandler(413)
+def request_too_large(e):
+    return jsonify({"error": "File too large — nginx client_max_body_size limit hit"}), 413
+
+
+@app.errorhandler(500)
+def internal_error(e):
+    return jsonify({"error": f"Internal server error: {e}"}), 500
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -26,8 +36,6 @@ def index():
 
 @app.route("/api/process", methods=["POST"])
 def process_video():
-    from utils.s3 import upload_video, generate_presigned_url, key_from_uri
-
     if "video" not in request.files:
         return jsonify({"error": "No video file provided"}), 400
 
@@ -38,23 +46,17 @@ def process_video():
     video_id = str(uuid.uuid4())
     suffix = Path(file.filename).suffix or ".mp4"
     local_path = UPLOAD_DIR / f"{video_id}{suffix}"
-    file.save(str(local_path))
 
     try:
-        s3_uri = upload_video(str(local_path), s3_key=f"videos/{video_id}{suffix}")
-        s3_key = key_from_uri(s3_uri)
-        video_url = generate_presigned_url(s3_key, expires_in=7200)
+        file.save(str(local_path))
     except Exception as e:
-        return jsonify({"error": f"S3 upload failed: {e}"}), 500
-    finally:
-        if local_path.exists():
-            local_path.unlink()
+        return jsonify({"error": f"Failed to save upload: {e}"}), 500
 
     jobs[video_id] = {
         "status": "processing",
         "current_step": 1,
         "steps": {
-            "compliance": {"status": "running", "result": None},
+            "compliance": {"status": "pending", "result": None},
             "quality":    {"status": "pending", "result": None},
             "annotation": {"status": "pending", "result": None},
         },
@@ -62,21 +64,37 @@ def process_video():
     }
 
     thread = threading.Thread(
-        target=_run_pipeline, args=(video_id, video_url), daemon=True
+        target=_run_pipeline, args=(video_id, local_path), daemon=True
     )
     thread.start()
 
     return jsonify({"video_id": video_id, "status": "processing"})
 
 
-def _run_pipeline(video_id: str, video_url: str) -> None:
+def _run_pipeline(video_id: str, local_path: Path) -> None:
+    from utils.s3 import upload_video, generate_presigned_url, key_from_uri
     from workloads.compliance import run_compliance_gate
     from workloads.quality import run_quality_score
     from workloads.annotation import run_action_annotation
     from utils.evidence import assemble_evidence_pack
 
     job = jobs[video_id]
+
+    # S3 upload first — done in background so the HTTP request returns immediately
     try:
+        s3_uri = upload_video(str(local_path), s3_key=f"videos/{local_path.name}")
+        s3_key = key_from_uri(s3_uri)
+        video_url = generate_presigned_url(s3_key, expires_in=7200)
+    except Exception as e:
+        job["status"] = "error"
+        job["error"] = f"S3 upload failed: {e}"
+        return
+    finally:
+        if local_path.exists():
+            local_path.unlink()
+
+    try:
+        job["steps"]["compliance"]["status"] = "running"
         compliance = run_compliance_gate(video_url)
         job["steps"]["compliance"] = {"status": "complete", "result": compliance}
         job["steps"]["quality"]["status"] = "running"
