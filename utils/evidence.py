@@ -14,7 +14,7 @@ def assemble_evidence_pack(
         if result.get("status") in ("FLAGGED", "UNCERTAIN")
     ]
 
-    low_conf_segments = [s for s in segments if s.get("confidence") == "LOW"]
+    low_conf_segments = [s for s in segments if s.get("metadata", {}).get("confidence") == "LOW"]
 
     disposition = compliance.get("disposition", "UNKNOWN")
     verdict = quality.get("verdict", "UNKNOWN")

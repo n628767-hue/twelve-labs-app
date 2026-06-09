@@ -323,6 +323,21 @@
     .score-num { font-size: 13px; font-weight: 700; flex: 0 0 24px; text-align: right; }
     .dim-explanation { font-size: 12px; color: var(--muted); margin-top: 6px; }
 
+    /* ── Model badge ──────────────────────────────────────────────────────────── */
+
+    .model-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 11px; font-weight: 700;
+      padding: 4px 10px; border-radius: 20px;
+      background: var(--surface2); color: var(--muted);
+      border: 1px solid var(--border);
+      margin-bottom: 14px;
+    }
+    .model-badge.dual {
+      background: rgba(99,102,241,0.1); color: #a5b4fc;
+      border-color: rgba(99,102,241,0.3);
+    }
+
     /* ── Action segments ─────────────────────────────────────────────────────── */
 
     .segment-list { display: grid; gap: 8px; }
@@ -808,7 +823,7 @@ function handleJobUpdate(job) {
       rendered.add(name);
       if (name === 'compliance') renderCompliance(step.result);
       else if (name === 'quality') renderQuality(step.result);
-      else if (name === 'annotation') renderAnnotation((step.result || {}).segments || []);
+      else if (name === 'annotation') renderAnnotation(step.result || {});
     }
   }
 
@@ -1005,14 +1020,29 @@ function fmtTime(sec) {
   return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
 }
 
-function renderAnnotation(segments) {
-  _tlSegments = segments || [];
-  if (!segments || !segments.length) {
-    document.getElementById('annotation-output').innerHTML = '<p style="color:var(--muted)">No segments returned.</p>';
+const REVIEW_REASON_LABELS = {
+  pegasus_only: '&#9888; Pegasus only — review',
+  marengo_only: '&#9888; Marengo only — review',
+};
+
+function renderAnnotation(result) {
+  const segments = (result && result.segments) || [];
+  const models   = (result && result.models) || ['pegasus1.5'];
+  _tlSegments = segments;
+
+  const dualModel = models.includes('marengo3.0');
+  const modelLabel = dualModel
+    ? 'Pegasus 1.5 + Marengo 3.0 &middot; dual-model'
+    : 'Pegasus 1.5 only &middot; single-model';
+  let html = '<div class="model-badge' + (dualModel ? ' dual' : '') + '">' + modelLabel + '</div>';
+
+  if (!segments.length) {
+    html += '<p style="color:var(--muted)">No segments returned.</p>';
+    document.getElementById('annotation-output').innerHTML = html;
     return;
   }
 
-  let html = '<div class="section-label">' + segments.length + ' Action Segment' + (segments.length > 1 ? 's' : '') + '</div>';
+  html += '<div class="section-label">' + segments.length + ' Action Segment' + (segments.length > 1 ? 's' : '') + '</div>';
   html += '<div class="segment-list">';
 
   for (let i = 0; i < segments.length; i++) {
@@ -1027,6 +1057,10 @@ function renderAnnotation(segments) {
     const hand     = meta.hand || '';
     const conf     = meta.confidence || 'MEDIUM';
     const confColor = conf === 'HIGH' ? 'var(--green)' : conf === 'LOW' ? 'var(--yellow)' : 'var(--muted)';
+    const reviewReason = seg.review_reason || null;
+    const flagLabel = reviewReason && REVIEW_REASON_LABELS[reviewReason]
+      ? REVIEW_REASON_LABELS[reviewReason]
+      : (lowConf ? '&#9888; LOW CONF' : '');
 
     const startStr  = fmtTime(start);
     const cardClick = start != null ? ' onclick="handleSegmentClick(' + i + ',' + start + ')"' : '';
@@ -1043,7 +1077,7 @@ function renderAnnotation(segments) {
           (taskType ? '<span class="tag">' + taskType + '</span>' : '') +
           (verb && noun ? '<span class="tag">' + verb + ' ' + noun + '</span>' : '') +
           (hand ? '<span class="tag hand">' + hand + '</span>' : '') +
-          (lowConf ? '<span class="tag low">&#9888; LOW CONF</span>' : '') +
+          (flagLabel ? '<span class="tag low">' + flagLabel + '</span>' : '') +
         '</div>' +
       '</div>' +
       '<div class="seg-conf" style="color:' + confColor + ';font-size:11px;font-weight:700">' + conf + '</div>' +

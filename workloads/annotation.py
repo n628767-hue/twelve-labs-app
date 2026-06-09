@@ -75,6 +75,7 @@ def run_action_annotation(
     marengo_video_id = marengo_video_id or os.environ.get("MARENGO_VIDEO_ID")
 
     pegasus_result = _run_pegasus(client, video_url)
+    pegasus_result["models"] = ["pegasus1.5"]
 
     # Fall back to Pegasus-only if no Marengo index configured or Pegasus itself failed
     if not marengo_index_id or pegasus_result["status"] != "ready":
@@ -91,9 +92,13 @@ def run_action_annotation(
         "task_id": pegasus_result["task_id"],
         "status": "ready",
         "segments": merged,
-        "low_confidence_count": sum(1 for s in merged if s.get("confidence") == "LOW"),
+        "low_confidence_count": _count_low_confidence(merged),
         "models": ["pegasus1.5", "marengo3.0"],
     }
+
+
+def _count_low_confidence(segments: list) -> int:
+    return sum(1 for s in segments if s.get("metadata", {}).get("confidence") == "LOW")
 
 
 def _run_pegasus(client, video_url: str) -> dict:
@@ -125,7 +130,7 @@ def _run_pegasus(client, video_url: str) -> dict:
                 "task_id": task_id,
                 "status": "ready",
                 "segments": segments,
-                "low_confidence_count": sum(1 for s in segments if s.get("confidence") == "LOW"),
+                "low_confidence_count": _count_low_confidence(segments),
             }
         if status.status == "failed":
             error_msg = status.error.message if status.error else "unknown error"
@@ -192,20 +197,25 @@ def _merge_segments(pegasus_segs: list, marengo_clips: list) -> list:
             matched_marengo.add(match_idx)
             merged.append(seg)
         else:
-            merged.append({**seg, "confidence": "LOW", "review_reason": "pegasus_only"})
+            flagged = dict(seg)
+            flagged["metadata"] = {**seg.get("metadata", {}), "confidence": "LOW"}
+            flagged["review_reason"] = "pegasus_only"
+            merged.append(flagged)
 
     for i, clip in enumerate(marengo_clips):
         if i not in matched_marengo:
             merged.append({
                 "start": clip["start"],
                 "end": clip["end"],
-                "title": "Unmatched action",
-                "task_type": "active task",
-                "verb": None,
-                "noun": None,
-                "hand": None,
-                "confidence": "LOW",
-                "description": "Action detected by Marengo only — requires human review.",
+                "metadata": {
+                    "title": "Unmatched action (Marengo)",
+                    "task_type": "active task",
+                    "verb": None,
+                    "noun": None,
+                    "hand": None,
+                    "confidence": "LOW",
+                    "description": "Action detected by Marengo only — requires human review.",
+                },
                 "review_reason": "marengo_only",
             })
 
