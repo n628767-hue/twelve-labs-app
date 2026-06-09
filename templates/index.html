@@ -761,21 +761,39 @@ processBtn.addEventListener('click', async () => {
   document.getElementById('player-file-name').textContent = window._selectedFile.name;
 
   processBtn.disabled = true;
-  setUploadProgress('Uploading to S3…', 40);
-
-  const form = new FormData();
-  form.append('video', window._selectedFile);
 
   try {
-    const resp = await fetch('/api/process', { method: 'POST', body: form });
-    const text = await resp.text();
-    let data;
-    try { data = JSON.parse(text); }
-    catch { throw new Error('HTTP ' + resp.status + ' — server returned non-JSON'); }
-    if (!resp.ok) throw new Error(data.error || 'HTTP ' + resp.status);
+    // Step 1 — get a presigned S3 PUT URL (tiny JSON request, no file through EB)
+    const urlResp = await fetch('/api/upload-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename: window._selectedFile.name }),
+    });
+    const urlText = await urlResp.text();
+    let urlData;
+    try { urlData = JSON.parse(urlText); }
+    catch { throw new Error('HTTP ' + urlResp.status + ' — upload-url returned non-JSON'); }
+    if (!urlResp.ok) throw new Error(urlData.error || 'HTTP ' + urlResp.status);
 
-    currentVideoId = data.video_id;
-    startPolling(data.video_id);
+    const { video_id, upload_url, s3_key } = urlData;
+
+    // Step 2 — PUT the file directly to S3 (bypasses EB/nginx, no size limit)
+    await uploadToS3(upload_url, window._selectedFile);
+
+    // Step 3 — tell the backend to start the pipeline
+    const procResp = await fetch('/api/process', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ video_id, s3_key }),
+    });
+    const procText = await procResp.text();
+    let procData;
+    try { procData = JSON.parse(procText); }
+    catch { throw new Error('HTTP ' + procResp.status + ' — process returned non-JSON'); }
+    if (!procResp.ok) throw new Error(procData.error || 'HTTP ' + procResp.status);
+
+    currentVideoId = video_id;
+    startPolling(video_id);
   } catch (err) {
     showError('Error: ' + err.message);
     document.getElementById('progress-bar').classList.remove('active');
@@ -784,6 +802,37 @@ processBtn.addEventListener('click', async () => {
     processBtn.disabled = false;
   }
 });
+
+// Upload file directly to S3 using a presigned PUT URL.
+// Uses XMLHttpRequest so we get real upload progress.
+function uploadToS3(presignedUrl, file) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    xhr.upload.addEventListener('progress', e => {
+      if (e.lengthComputable) {
+        const pct = Math.round((e.loaded / e.total) * 90); // cap at 90 until complete
+        setUploadProgress('Uploading to S3… ' + pct + '%', pct);
+      }
+    });
+
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        setUploadProgress('Upload complete — starting pipeline…', 100);
+        resolve();
+      } else {
+        reject(new Error('S3 upload failed: HTTP ' + xhr.status));
+      }
+    });
+
+    xhr.addEventListener('error', () => reject(new Error('S3 upload network error')));
+    xhr.addEventListener('abort', () => reject(new Error('S3 upload aborted')));
+
+    xhr.open('PUT', presignedUrl);
+    xhr.setRequestHeader('Content-Type', 'video/*');
+    xhr.send(file);
+  });
+}
 
 // ── Video seek helper ──────────────────────────────────────────────────────────
 

@@ -1,5 +1,6 @@
 """Atlas Demo — FieldLens workforce intelligence platform."""
 import json
+import os
 import threading
 import uuid
 from pathlib import Path
@@ -21,7 +22,7 @@ jobs: dict = {}  # video_id -> job state dict
 
 @app.errorhandler(413)
 def request_too_large(e):
-    return jsonify({"error": "File too large — nginx client_max_body_size limit hit"}), 413
+    return jsonify({"error": "File too large"}), 413
 
 
 @app.errorhandler(500)
@@ -34,23 +35,47 @@ def index():
     return render_template("index.html")
 
 
-@app.route("/api/process", methods=["POST"])
-def process_video():
-    if "video" not in request.files:
-        return jsonify({"error": "No video file provided"}), 400
-
-    file = request.files["video"]
-    if not file.filename:
-        return jsonify({"error": "Empty filename"}), 400
-
+@app.route("/api/upload-url", methods=["POST"])
+def get_upload_url():
+    """Return a presigned S3 PUT URL so the browser can upload directly to S3."""
+    import boto3
+    data = request.get_json(silent=True) or {}
+    filename = data.get("filename", "video.mp4")
+    suffix = Path(filename).suffix or ".mp4"
     video_id = str(uuid.uuid4())
-    suffix = Path(file.filename).suffix or ".mp4"
-    local_path = UPLOAD_DIR / f"{video_id}{suffix}"
+    s3_key = f"videos/{video_id}{suffix}"
+
+    bucket = os.environ.get("S3_BUCKET")
+    region = os.environ.get("AWS_REGION", "us-east-1")
 
     try:
-        file.save(str(local_path))
+        s3 = boto3.client("s3", region_name=region)
+        upload_url = s3.generate_presigned_url(
+            "put_object",
+            Params={"Bucket": bucket, "Key": s3_key, "ContentType": "video/*"},
+            ExpiresIn=3600,
+        )
     except Exception as e:
-        return jsonify({"error": f"Failed to save upload: {e}"}), 500
+        return jsonify({"error": f"Could not generate upload URL: {e}"}), 500
+
+    return jsonify({"video_id": video_id, "upload_url": upload_url, "s3_key": s3_key})
+
+
+@app.route("/api/process", methods=["POST"])
+def process_video():
+    """Start the pipeline for a video already uploaded to S3."""
+    data = request.get_json(silent=True) or {}
+    video_id = data.get("video_id")
+    s3_key = data.get("s3_key")
+
+    if not video_id or not s3_key:
+        return jsonify({"error": "video_id and s3_key are required"}), 400
+
+    from utils.s3 import generate_presigned_url
+    try:
+        video_url = generate_presigned_url(s3_key, expires_in=7200)
+    except Exception as e:
+        return jsonify({"error": f"Could not generate presigned URL: {e}"}), 500
 
     jobs[video_id] = {
         "status": "processing",
@@ -64,35 +89,20 @@ def process_video():
     }
 
     thread = threading.Thread(
-        target=_run_pipeline, args=(video_id, local_path), daemon=True
+        target=_run_pipeline, args=(video_id, video_url), daemon=True
     )
     thread.start()
 
     return jsonify({"video_id": video_id, "status": "processing"})
 
 
-def _run_pipeline(video_id: str, local_path: Path) -> None:
-    from utils.s3 import upload_video, generate_presigned_url, key_from_uri
+def _run_pipeline(video_id: str, video_url: str) -> None:
     from workloads.compliance import run_compliance_gate
     from workloads.quality import run_quality_score
     from workloads.annotation import run_action_annotation
     from utils.evidence import assemble_evidence_pack
 
     job = jobs[video_id]
-
-    # S3 upload first — done in background so the HTTP request returns immediately
-    try:
-        s3_uri = upload_video(str(local_path), s3_key=f"videos/{local_path.name}")
-        s3_key = key_from_uri(s3_uri)
-        video_url = generate_presigned_url(s3_key, expires_in=7200)
-    except Exception as e:
-        job["status"] = "error"
-        job["error"] = f"S3 upload failed: {e}"
-        return
-    finally:
-        if local_path.exists():
-            local_path.unlink()
-
     try:
         job["steps"]["compliance"]["status"] = "running"
         compliance = run_compliance_gate(video_url)
