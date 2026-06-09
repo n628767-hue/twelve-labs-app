@@ -1,0 +1,13 @@
+version = 0.1
+
+[default.build.parameters]
+cached = true
+parallel = true
+
+[default.deploy.parameters]
+stack_name        = "atlas-demo"
+region            = "us-east-1"
+capabilities      = "CAPABILITY_IAM"
+resolve_s3        = true
+s3_prefix         = "atlas-demo"
+confirm_changeset = false

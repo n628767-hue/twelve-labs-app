@@ -1,0 +1,26 @@
+# Local development artifacts
+uploads/
+.env
+.env.example
+
+# Flask-only files — not invoked by lambda_handler.py
+app.py
+static/
+templates/
+
+# SAM / deployment artifacts — processed separately, not part of the Lambda package
+aws-sam-cli.pkg
+template.yaml
+samconfig.toml
+.aws-sam/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Editor / tooling
+.claude/
+.gitignore
+*.DS_Store

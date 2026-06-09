@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FieldLens Atlas — Workforce Video Intelligence</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0f14;
+      --surface: #161b24;
+      --surface2: #1e2535;
+      --border: #2a3344;
+      --accent: #3b82f6;
+      --accent2: #6366f1;
+      --green: #22c55e;
+      --yellow: #eab308;
+      --red: #ef4444;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --radius: 10px;
+      --font: 'Inter', system-ui, sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--surface);
+    }
+
+    header .logo {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 16px; color: white;
+    }
+
+    header h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+    header span { color: var(--muted); font-size: 13px; margin-left: 4px; }
+
+    .badge {
+      margin-left: auto;
+      background: rgba(59,130,246,0.15);
+      color: var(--accent);
+      border: 1px solid rgba(59,130,246,0.3);
+      padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    }
+
+    main { max-width: 1200px; margin: 0 auto; padding: 32px; }
+
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 48px 32px;
+      text-align: center;
+      background: var(--surface);
+      transition: border-color 0.2s, background 0.2s;
+      cursor: pointer;
+      position: relative;
+    }
+    .upload-zone:hover, .upload-zone.drag { border-color: var(--accent); background: rgba(59,130,246,0.04); }
+    .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .upload-zone .icon { font-size: 40px; margin-bottom: 12px; }
+    .upload-zone h2 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+    .upload-zone p { color: var(--muted); font-size: 13px; }
+
+    #file-name {
+      margin-top: 12px;
+      font-size: 13px;
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--accent); color: white;
+      border: none; border-radius: 8px;
+      padding: 12px 28px; font-size: 14px; font-weight: 600;
+      cursor: pointer; transition: opacity 0.2s, transform 0.1s;
+      margin-top: 20px;
+    }
+    .btn:hover { opacity: 0.9; }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-dl {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 18px;
+      font-size: 13px;
+    }
+
+    .progress-bar {
+      height: 3px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 16px;
+      display: none;
+    }
+    .progress-bar.active { display: block; }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      width: 0%;
+      transition: width 0.4s;
+      border-radius: 2px;
+    }
+
+    .status-msg { margin-top: 10px; color: var(--muted); font-size: 13px; text-align: center; }
+
+    .results { margin-top: 40px; display: none; }
+    .results.show { display: block; }
+
+    .results-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 24px;
+    }
+    .results-header h2 { font-size: 17px; font-weight: 700; }
+
+    .workload-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 24px;
+    }
+
+    .workload-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .card-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 12px;
+      background: var(--surface2);
+    }
+
+    .card-header .number {
+      width: 26px; height: 26px; border-radius: 50%;
+      background: var(--accent); color: white;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700; flex-shrink: 0;
+    }
+
+    .card-header h3 { font-size: 14px; font-weight: 700; }
+    .card-header .sub { font-size: 12px; color: var(--muted); margin-left: auto; }
+
+    .card-body { padding: 20px; }
+
+    /* Disposition / Verdict pill */
+    .pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 14px; border-radius: 20px;
+      font-size: 13px; font-weight: 700;
+      margin-bottom: 16px;
+    }
+    .pill.pass { background: rgba(34,197,94,0.12); color: var(--green); border: 1px solid rgba(34,197,94,0.3); }
+    .pill.review { background: rgba(234,179,8,0.12); color: var(--yellow); border: 1px solid rgba(234,179,8,0.3); }
+    .pill.block, .pill.reject { background: rgba(239,68,68,0.12); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
+
+    /* Compliance categories table */
+    .cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    @media (max-width: 700px) { .cat-grid { grid-template-columns: 1fr; } }
+
+    .cat-item {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+    .cat-item.flagged { border-color: rgba(239,68,68,0.4); background: rgba(239,68,68,0.05); }
+    .cat-item.uncertain { border-color: rgba(234,179,8,0.4); background: rgba(234,179,8,0.05); }
+
+    .cat-name {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.5px; color: var(--muted); margin-bottom: 6px;
+    }
+
+    .cat-status { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
+    .cat-status .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .dot-clear { background: var(--green); }
+    .dot-flagged { background: var(--red); }
+    .dot-uncertain { background: var(--yellow); }
+
+    .cat-evidence { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.4; }
+
+    /* Quality dimensions */
+    .dim-list { display: grid; gap: 10px; }
+    .dim-item {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+    .dim-row { display: flex; align-items: center; gap: 10px; }
+    .dim-name { font-size: 13px; font-weight: 600; flex: 1; }
+    .score-bar { flex: 0 0 80px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .score-fill { height: 100%; border-radius: 3px; }
+    .score-fill.s5 { width: 100%; background: var(--green); }
+    .score-fill.s4 { width: 80%; background: #4ade80; }
+    .score-fill.s3 { width: 60%; background: var(--yellow); }
+    .score-fill.s2 { width: 40%; background: #f97316; }
+    .score-fill.s1 { width: 20%; background: var(--red); }
+    .score-num { font-size: 13px; font-weight: 700; flex: 0 0 24px; text-align: right; }
+    .dim-explanation { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+    /* Action segments */
+    .segment-list { display: grid; gap: 8px; }
+    .segment-item {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      display: grid;
+      grid-template-columns: 70px 1fr auto;
+      gap: 12px;
+      align-items: start;
+    }
+    .segment-item.low-conf { border-color: rgba(234,179,8,0.4); }
+
+    .seg-time { font-size: 11px; font-weight: 700; color: var(--accent); font-family: monospace; }
+    .seg-end-time { font-size: 10px; color: var(--muted); }
+    .seg-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+    .seg-desc { font-size: 12px; color: var(--muted); line-height: 1.4; }
+    .seg-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+    .tag {
+      font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px;
+      background: rgba(59,130,246,0.1); color: var(--accent);
+      border: 1px solid rgba(59,130,246,0.2);
+    }
+    .tag.hand { background: rgba(99,102,241,0.1); color: #818cf8; border-color: rgba(99,102,241,0.2); }
+    .tag.low { background: rgba(234,179,8,0.1); color: var(--yellow); border-color: rgba(234,179,8,0.2); }
+
+    .seg-conf { flex-shrink: 0; }
+
+    /* Prompt collapsible */
+    .prompt-toggle {
+      background: none; border: none; color: var(--muted);
+      font-size: 12px; cursor: pointer; padding: 0;
+      display: flex; align-items: center; gap: 4px;
+      margin-bottom: 8px;
+    }
+    .prompt-toggle:hover { color: var(--text); }
+    .prompt-box {
+      background: #0a0c11;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 14px;
+      font-family: monospace;
+      font-size: 11px;
+      color: #a0aec0;
+      white-space: pre-wrap;
+      line-height: 1.5;
+      display: none;
+      margin-bottom: 16px;
+    }
+    .prompt-box.open { display: block; }
+
+    .reviewer-box {
+      background: rgba(59,130,246,0.06);
+      border: 1px solid rgba(59,130,246,0.2);
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-size: 13px;
+      line-height: 1.6;
+      margin-top: 16px;
+    }
+    .reviewer-box strong { color: var(--accent); display: block; margin-bottom: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    .confidence-bar {
+      display: flex; align-items: center; gap: 10px; margin-top: 10px;
+    }
+    .confidence-bar label { font-size: 12px; color: var(--muted); }
+    .conf-track { flex: 1; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+    .conf-fill { height: 100%; background: var(--accent); border-radius: 2px; }
+    .conf-num { font-size: 12px; font-weight: 600; }
+
+    .section-label {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.5px; color: var(--muted); margin-bottom: 12px;
+    }
+
+    .error-msg {
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: 8px;
+      padding: 14px 16px;
+      color: #fca5a5;
+      font-size: 13px;
+      margin-top: 16px;
+    }
+
+    .overall-score {
+      font-size: 28px; font-weight: 800; margin-bottom: 4px;
+    }
+    .overall-label { font-size: 12px; color: var(--muted); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">FL</div>
+  <h1>FieldLens Atlas <span>/ Video Intelligence</span></h1>
+  <div class="badge">Powered by TwelveLabs</div>
+</header>
+
+<main>
+
+  <div class="upload-zone" id="drop-zone">
+    <input type="file" id="video-input" accept="video/*" />
+    <div class="icon">🎬</div>
+    <h2>Drop egocentric video here</h2>
+    <p>MP4, MOV, AVI · First-person POV footage from frontline workers</p>
+    <div id="file-name"></div>
+  </div>
+
+  <div style="text-align:center">
+    <button class="btn" id="process-btn" disabled>
+      <span>▶</span> Run Full Intelligence Pipeline
+    </button>
+  </div>
+
+  <div class="progress-bar" id="progress-bar">
+    <div class="progress-fill" id="progress-fill"></div>
+  </div>
+  <div class="status-msg" id="status-msg"></div>
+  <div class="error-msg" id="error-msg" style="display:none"></div>
+
+  <div class="results" id="results">
+
+    <div class="results-header">
+      <h2>Evidence Pack</h2>
+      <button class="btn btn-dl" id="download-btn">⬇ Download JSON</button>
+    </div>
+
+    <!-- Workload 1: Compliance Gate -->
+    <div class="workload-grid">
+      <div class="workload-card">
+        <div class="card-header">
+          <div class="number">1</div>
+          <div>
+            <h3>Compliance Gate</h3>
+          </div>
+          <div class="sub">Pegasus 1.5 · Sync</div>
+        </div>
+        <div class="card-body">
+          <button class="prompt-toggle" onclick="togglePrompt('compliance-prompt')">
+            ▶ Show prompt
+          </button>
+          <div class="prompt-box" id="compliance-prompt"></div>
+
+          <div id="compliance-output"></div>
+        </div>
+      </div>
+
+      <!-- Workload 2: Quality Score -->
+      <div class="workload-card">
+        <div class="card-header">
+          <div class="number">2</div>
+          <div>
+            <h3>Quality Scoring</h3>
+          </div>
+          <div class="sub">Pegasus 1.5 · Sync</div>
+        </div>
+        <div class="card-body">
+          <button class="prompt-toggle" onclick="togglePrompt('quality-prompt')">
+            ▶ Show prompt
+          </button>
+          <div class="prompt-box" id="quality-prompt"></div>
+
+          <div id="quality-output"></div>
+        </div>
+      </div>
+
+      <!-- Workload 3: Action Annotation -->
+      <div class="workload-card">
+        <div class="card-header">
+          <div class="number">3</div>
+          <div>
+            <h3>Action Annotation</h3>
+          </div>
+          <div class="sub">Pegasus 1.5 · Async TBM</div>
+        </div>
+        <div class="card-body">
+          <button class="prompt-toggle" onclick="togglePrompt('annotation-prompt')">
+            ▶ Show prompt
+          </button>
+          <div class="prompt-box" id="annotation-prompt"></div>
+
+          <div id="annotation-output"></div>
+        </div>
+      </div>
+
+    </div><!-- /workload-grid -->
+
+    <!-- Reviewer Summary -->
+    <div class="reviewer-box" id="reviewer-summary" style="margin-top:24px; display:none">
+      <strong>Reviewer Summary</strong>
+      <span id="reviewer-text"></span>
+    </div>
+
+  </div><!-- /results -->
+</main>
+
+<script>
+const PROMPTS = {
+  compliance: `COMPLIANCE GATE — Pegasus 1.5 (sync analyze)
+
+Evaluate footage against 6 categories:
+1. minors_in_frame (P0 auto-block)
+2. pii_sensitive_surfaces (P1)
+3. profanity_hostile_speech (P1)
+4. unsafe_acts (P1)
+5. competitor_ip (P1)
+6. health_related_activity (P1)
+
+Per category: status (FLAGGED/CLEAR/UNCERTAIN), severity, timestamp, evidence, action.
+Overall: disposition (PASS/REVIEW REQUIRED/BLOCK), confidence, reviewer_summary.`,
+
+  quality: `QUALITY SCORING — Pegasus 1.5 (sync analyze)
+
+Score 5 dimensions 1-5:
+1. framing_stability
+2. action_visibility
+3. task_completeness
+4. audio_intelligibility
+5. lighting_adequacy
+
+PASS = all 4+  |  REVIEW = any 3  |  REJECT = two or more below 3`,
+
+  annotation: `ACTION ANNOTATION — Pegasus 1.5 (async time_based_metadata)
+
+Segment into atomic workplace actions.
+Per segment: title, task_type, verb, noun, hand (LEFT/RIGHT/BOTH),
+confidence (HIGH/MEDIUM/LOW), description.
+LOW confidence flagged for human review.`,
+};
+
+let currentVideoId = null;
+
+// Drag & drop
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('video-input');
+const processBtn = document.getElementById('process-btn');
+const fileName = document.getElementById('file-name');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag');
+  if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+});
+
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) setFile(fileInput.files[0]);
+});
+
+function setFile(file) {
+  fileName.textContent = `📎 ${file.name}`;
+  processBtn.disabled = false;
+  processBtn.dataset.file = true;
+  window._selectedFile = file;
+}
+
+// Populate prompts
+document.getElementById('compliance-prompt').textContent = PROMPTS.compliance;
+document.getElementById('quality-prompt').textContent = PROMPTS.quality;
+document.getElementById('annotation-prompt').textContent = PROMPTS.annotation;
+
+function togglePrompt(id) {
+  const box = document.getElementById(id);
+  const btn = box.previousElementSibling;
+  box.classList.toggle('open');
+  btn.textContent = box.classList.contains('open') ? '▼ Hide prompt' : '▶ Show prompt';
+}
+
+function setStatus(msg, pct) {
+  document.getElementById('status-msg').textContent = msg;
+  const bar = document.getElementById('progress-bar');
+  const fill = document.getElementById('progress-fill');
+  bar.classList.add('active');
+  fill.style.width = pct + '%';
+}
+
+function showError(msg) {
+  const el = document.getElementById('error-msg');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+processBtn.addEventListener('click', async () => {
+  if (!window._selectedFile) return;
+  document.getElementById('error-msg').style.display = 'none';
+  document.getElementById('results').classList.remove('show');
+  processBtn.disabled = true;
+
+  const form = new FormData();
+  form.append('video', window._selectedFile);
+
+  setStatus('Uploading to S3…', 15);
+
+  try {
+    setStatus('Running Compliance Gate…', 30);
+    const resp = await fetch('/api/process', { method: 'POST', body: form });
+    setStatus('Running Quality Scoring…', 55);
+    // (server runs all three sequentially; we animate client-side)
+    await new Promise(r => setTimeout(r, 800));
+    setStatus('Running Action Annotation (async TBM)…', 75);
+    await new Promise(r => setTimeout(r, 600));
+    setStatus('Assembling evidence pack…', 90);
+
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Processing failed');
+
+    setStatus('Complete', 100);
+    renderResults(data);
+  } catch (err) {
+    showError('Error: ' + err.message);
+    setStatus('', 0);
+    document.getElementById('progress-bar').classList.remove('active');
+  } finally {
+    processBtn.disabled = false;
+  }
+});
+
+function renderResults(data) {
+  const pack = data.evidence_pack;
+  currentVideoId = data.video_id;
+
+  renderCompliance(pack.compliance_gate);
+  renderQuality(pack.quality_score);
+  renderAnnotation(pack.action_segments);
+
+  document.getElementById('reviewer-text').textContent = pack.reviewer_summary;
+  document.getElementById('reviewer-summary').style.display = 'block';
+
+  document.getElementById('results').classList.add('show');
+}
+
+function dispositionClass(d) {
+  if (!d) return '';
+  const v = d.toUpperCase();
+  if (v === 'PASS') return 'pass';
+  if (v === 'BLOCK' || v === 'REJECT') return 'block';
+  return 'review';
+}
+
+const CAT_LABELS = {
+  minors_in_frame: 'Minors in Frame',
+  pii_sensitive_surfaces: 'PII / Sensitive Surfaces',
+  profanity_hostile_speech: 'Profanity / Hostile Speech',
+  unsafe_acts: 'Unsafe Acts',
+  competitor_ip: 'Competitor IP',
+  health_related_activity: 'Health-Related Activity',
+};
+
+function renderCompliance(c) {
+  if (!c) { document.getElementById('compliance-output').innerHTML = '<p style="color:var(--muted)">No data</p>'; return; }
+
+  const disp = c.disposition || 'UNKNOWN';
+  const dispCls = dispositionClass(disp);
+  const conf = c.confidence ?? 0;
+
+  let html = `<div class="pill ${dispCls}">${disp}</div>`;
+  html += `<div class="confidence-bar"><label>Confidence</label><div class="conf-track"><div class="conf-fill" style="width:${Math.round(conf*100)}%"></div></div><span class="conf-num">${Math.round(conf*100)}%</span></div>`;
+  html += `<div style="margin:16px 0 10px" class="section-label">Category Results</div>`;
+  html += `<div class="cat-grid">`;
+
+  for (const [key, result] of Object.entries(c.categories || {})) {
+    const status = result.status || 'CLEAR';
+    const cls = status === 'FLAGGED' ? 'flagged' : status === 'UNCERTAIN' ? 'uncertain' : '';
+    const dotCls = status === 'FLAGGED' ? 'dot-flagged' : status === 'UNCERTAIN' ? 'dot-uncertain' : 'dot-clear';
+    const evidence = result.evidence || '';
+    const severity = result.severity ? ` · ${result.severity}` : '';
+    html += `<div class="cat-item ${cls}">
+      <div class="cat-name">${CAT_LABELS[key] || key}</div>
+      <div class="cat-status"><span class="dot ${dotCls}"></span>${status}${severity}</div>
+      ${evidence ? `<div class="cat-evidence">${evidence}</div>` : ''}
+    </div>`;
+  }
+  html += `</div>`;
+
+  if (c.reviewer_summary) {
+    html += `<div class="reviewer-box" style="margin-top:16px"><strong>Compliance Summary</strong>${c.reviewer_summary}</div>`;
+  }
+
+  document.getElementById('compliance-output').innerHTML = html;
+}
+
+const DIM_LABELS = {
+  framing_stability: 'Framing Stability',
+  action_visibility: 'Action Visibility',
+  task_completeness: 'Task Completeness',
+  audio_intelligibility: 'Audio Intelligibility',
+  lighting_adequacy: 'Lighting Adequacy',
+};
+
+function renderQuality(q) {
+  if (!q) { document.getElementById('quality-output').innerHTML = '<p style="color:var(--muted)">No data</p>'; return; }
+
+  const verdict = q.verdict || 'UNKNOWN';
+  const overall = q.overall_score ?? 0;
+
+  let html = `<div class="pill ${dispositionClass(verdict)}">${verdict}</div>`;
+  html += `<div class="section-label">Dimension Scores</div>`;
+  html += `<div class="dim-list">`;
+
+  for (const [key, dim] of Object.entries(q.dimensions || {})) {
+    const s = dim.score || 0;
+    html += `<div class="dim-item">
+      <div class="dim-row">
+        <span class="dim-name">${DIM_LABELS[key] || key}</span>
+        <div class="score-bar"><div class="score-fill s${s}"></div></div>
+        <span class="score-num">${s}/5</span>
+      </div>
+      <div class="dim-explanation">${dim.explanation || ''}</div>
+    </div>`;
+  }
+  html += `</div>`;
+
+  document.getElementById('quality-output').innerHTML = html;
+}
+
+function fmtTime(sec) {
+  if (sec == null) return '—';
+  const s = Math.round(sec);
+  const m = Math.floor(s / 60);
+  const ss = String(s % 60).padStart(2, '0');
+  return `${m}:${ss}`;
+}
+
+function renderAnnotation(segments) {
+  if (!segments || !segments.length) {
+    document.getElementById('annotation-output').innerHTML = '<p style="color:var(--muted)">No segments returned.</p>';
+    return;
+  }
+
+  let html = `<div class="section-label">${segments.length} Action Segment${segments.length > 1 ? 's' : ''}</div>`;
+  html += `<div class="segment-list">`;
+
+  for (const seg of segments) {
+    const lowConf = seg.confidence === 'LOW';
+    const start = seg.start_time ?? seg.start ?? null;
+    const end = seg.end_time ?? seg.end ?? null;
+    const taskType = seg.task_type || '';
+    const verb = seg.verb || '';
+    const noun = seg.noun || '';
+    const hand = seg.hand || '';
+    const conf = seg.confidence || 'MEDIUM';
+
+    html += `<div class="segment-item ${lowConf ? 'low-conf' : ''}">
+      <div>
+        <div class="seg-time">${fmtTime(start)}</div>
+        <div class="seg-end-time">→ ${fmtTime(end)}</div>
+      </div>
+      <div>
+        <div class="seg-title">${seg.title || 'Unnamed Action'}</div>
+        <div class="seg-desc">${seg.description || ''}</div>
+        <div class="seg-meta">
+          ${taskType ? `<span class="tag">${taskType}</span>` : ''}
+          ${verb && noun ? `<span class="tag">${verb} ${noun}</span>` : ''}
+          ${hand ? `<span class="tag hand">${hand}</span>` : ''}
+          ${lowConf ? `<span class="tag low">⚠ LOW CONF</span>` : ''}
+        </div>
+      </div>
+      <div class="seg-conf" style="color:${conf==='HIGH'?'var(--green)':conf==='LOW'?'var(--yellow)':'var(--muted)'}; font-size:11px; font-weight:700;">${conf}</div>
+    </div>`;
+  }
+  html += `</div>`;
+
+  document.getElementById('annotation-output').innerHTML = html;
+}
+
+document.getElementById('download-btn').addEventListener('click', () => {
+  if (!currentVideoId) return;
+  window.location.href = `/api/download/${currentVideoId}`;
+});
+</script>
+</body>
+</html>

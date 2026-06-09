@@ -1,0 +1,84 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Atlas Demo — video processing pipeline on Lambda + Step Functions
+
+Parameters:
+  TwelveLabsApiKey:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /atlas-demo/TWELVELABS_API_KEY
+    Description: TwelveLabs API key resolved from SSM Parameter Store at deploy time
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Architectures:
+      - x86_64
+    MemorySize: 512
+    Environment:
+      Variables:
+        TWELVELABS_API_KEY: !Ref TwelveLabsApiKey
+
+Resources:
+
+  ComplianceFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: lambda_handler.compliance_handler
+      CodeUri: .
+      Timeout: 120
+
+  QualityFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: lambda_handler.quality_handler
+      CodeUri: .
+      Timeout: 120
+
+  AnnotationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: lambda_handler.annotation_handler
+      CodeUri: .
+      Timeout: 660
+
+  VideoProcessingStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Type: STANDARD
+      Definition:
+        Comment: Atlas video processing pipeline — compliance → quality → annotation
+        StartAt: ComplianceGate
+        States:
+          ComplianceGate:
+            Type: Task
+            Resource: !GetAtt ComplianceFunction.Arn
+            ResultPath: "$.compliance"
+            Next: QualityScore
+          QualityScore:
+            Type: Task
+            Resource: !GetAtt QualityFunction.Arn
+            ResultPath: "$.quality"
+            Next: ActionAnnotation
+          ActionAnnotation:
+            Type: Task
+            Resource: !GetAtt AnnotationFunction.Arn
+            ResultPath: "$.annotation"
+            End: true
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref ComplianceFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref QualityFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref AnnotationFunction
+
+Outputs:
+  StateMachineArn:
+    Description: Start an execution with — aws stepfunctions start-execution --state-machine-arn <value> --input '{"video_url":"...","video_id":"..."}'
+    Value: !Ref VideoProcessingStateMachine
+  ComplianceFunctionArn:
+    Value: !GetAtt ComplianceFunction.Arn
+  QualityFunctionArn:
+    Value: !GetAtt QualityFunction.Arn
+  AnnotationFunctionArn:
+    Value: !GetAtt AnnotationFunction.Arn
