@@ -23,5 +23,4 @@ def annotation_handler(event, context):
     return run_action_annotation(
         event["video_url"],
         marengo_index_id=event.get("marengo_index_id"),
-        marengo_video_id=event.get("marengo_video_id"),
     )

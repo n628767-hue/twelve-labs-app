@@ -1,5 +1,6 @@
 import json
 import os
+import threading
 import time
 from twelvelabs.types.video_context import VideoContext_Url
 from twelvelabs.types.async_response_format import AsyncResponseFormat
@@ -64,27 +65,49 @@ MARENGO_QUERIES = [
 ]
 
 
-def run_action_annotation(
-    video_url: str,
-    marengo_index_id: str = None,
-    marengo_video_id: str = None,
-) -> dict:
+def run_action_annotation(video_url: str, marengo_index_id: str = None) -> dict:
+    """
+    Runs Pegasus 1.5 (async time-based metadata) and, if a Marengo index is
+    configured, indexes the video into Marengo and runs semantic search —
+    both in parallel, since each is its own async poll loop.
+    """
     client = get_client()
-
     marengo_index_id = marengo_index_id or os.environ.get("MARENGO_INDEX_ID")
-    marengo_video_id = marengo_video_id or os.environ.get("MARENGO_VIDEO_ID")
 
-    pegasus_result = _run_pegasus(client, video_url)
+    pegasus_result: dict = {}
+    marengo_state = {"video_id": None, "error": None}
+
+    def _pegasus_job():
+        pegasus_result.update(_run_pegasus(client, video_url))
+
+    threads = [threading.Thread(target=_pegasus_job)]
+
+    if marengo_index_id:
+        def _marengo_index_job():
+            try:
+                marengo_state["video_id"] = _index_video_marengo(client, marengo_index_id, video_url)
+            except Exception as e:
+                marengo_state["error"] = str(e)
+        threads.append(threading.Thread(target=_marengo_index_job))
+
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
     pegasus_result["models"] = ["pegasus1.5"]
 
-    # Fall back to Pegasus-only if no Marengo index configured or Pegasus itself failed
+    # Fall back to Pegasus-only if no Marengo index configured, Pegasus failed,
+    # or Marengo indexing failed/timed out
     if not marengo_index_id or pegasus_result["status"] != "ready":
+        return pegasus_result
+    if marengo_state["error"] or not marengo_state["video_id"]:
         return pegasus_result
 
     try:
-        marengo_clips = _run_marengo_search(client, marengo_index_id, marengo_video_id)
+        marengo_clips = _run_marengo_search(client, marengo_index_id, marengo_state["video_id"])
     except Exception:
-        # Marengo index doesn't exist yet or search failed — degrade gracefully
+        # Search failed — degrade gracefully
         return pegasus_result
 
     merged = _merge_segments(pegasus_result["segments"], marengo_clips)
@@ -95,6 +118,24 @@ def run_action_annotation(
         "low_confidence_count": _count_low_confidence(merged),
         "models": ["pegasus1.5", "marengo3.0"],
     }
+
+
+def _index_video_marengo(client, index_id: str, video_url: str) -> str:
+    """Index a video into the Marengo index; block until ready, return its video_id."""
+    task = client.tasks.create(index_id=index_id, video_url=video_url)
+    task_id = task.id
+
+    elapsed = 0
+    while elapsed < MAX_WAIT:
+        status = client.tasks.retrieve(task_id)
+        if status.status == "ready":
+            return status.video_id
+        if status.status == "failed":
+            raise RuntimeError(f"Marengo indexing failed for task {task_id}")
+        time.sleep(POLL_INTERVAL)
+        elapsed += POLL_INTERVAL
+
+    raise TimeoutError(f"Marengo indexing timed out for task {task_id}")
 
 
 def _count_low_confidence(segments: list) -> int:
@@ -141,19 +182,23 @@ def _run_pegasus(client, video_url: str) -> dict:
     return {"task_id": task_id, "status": "timeout", "segments": []}
 
 
-def _run_marengo_search(client, index_id: str, video_id: str = None) -> list:
-    """Run Marengo semantic search; return deduplicated clips sorted by start time."""
+def _run_marengo_search(client, index_id: str, video_id: str) -> list:
+    """Run Marengo semantic search scoped to one video; return deduplicated clips sorted by start time."""
     raw_clips = []
     for query in MARENGO_QUERIES:
-        kwargs = dict(index_id=index_id, query_text=query, options=["visual", "audio"])
-        if video_id:
-            kwargs["filter"] = {"id": [video_id]}
-        results = client.search.query(**kwargs)
-        for clip in (results.data or []):
+        results = client.search.query(
+            index_id=index_id,
+            query_text=query,
+            search_options=["visual", "audio"],
+            filter=json.dumps({"id": [video_id]}),
+        )
+        for clip in (results.items or []):
+            if clip.start is None or clip.end is None:
+                continue
             raw_clips.append({
                 "start": float(clip.start),
                 "end": float(clip.end),
-                "score": float(clip.score),
+                "rank": clip.rank,
             })
 
     raw_clips.sort(key=lambda c: c["start"])

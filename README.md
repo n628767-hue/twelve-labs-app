@@ -94,8 +94,7 @@ aws stepfunctions start-execution \
 | `AWS_ACCESS_KEY_ID` | Yes* | AWS access key (*or use `~/.aws/credentials` / IAM role) |
 | `AWS_SECRET_ACCESS_KEY` | Yes* | AWS secret key |
 | `AWS_REGION` | No | AWS region (default: `us-east-1`) |
-| `MARENGO_INDEX_ID` | No | TwelveLabs index for Workload 3 dual-model path |
-| `MARENGO_VIDEO_ID` | No | TwelveLabs video ID within that index |
+| `MARENGO_INDEX_ID` | No | TwelveLabs Marengo 3.0 index ID for Workload 3 dual-model path. If unset, Workload 3 runs Pegasus 1.5 only. If set, every uploaded video is indexed into Marengo on the fly (in parallel with the Pegasus TBM call) and cross-checked. |
 
 ---
 
@@ -111,7 +110,12 @@ Browser → Flask (app.py)
   └── background thread runs three workloads sequentially
        ├── Workload 1 → TwelveLabs Pegasus 1.5 (sync analyze)
        ├── Workload 2 → TwelveLabs Pegasus 1.5 (sync analyze)
-       └── Workload 3 → TwelveLabs Pegasus 1.5 (async TBM) + Marengo 3.0 (optional)
+       └── Workload 3 → runs in parallel:
+            ├── TwelveLabs Pegasus 1.5 (async time-based metadata)
+            └── TwelveLabs Marengo 3.0 (index video → semantic search) — if MARENGO_INDEX_ID set
+            then merges results: segments confirmed by both models keep their
+            confidence; single-model-only detections are flagged LOW + review_reason
+            (pegasus_only / marengo_only) for human review
 
 Browser polls /api/status every 3s — cards render as each workload completes.
 ```

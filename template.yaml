@@ -39,7 +39,7 @@ Resources:
     Properties:
       Handler: lambda_handler.annotation_handler
       CodeUri: .
-      Timeout: 660
+      Timeout: 720
 
   VideoProcessingStateMachine:
     Type: AWS::Serverless::StateMachine
