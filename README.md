@@ -1,234 +1,137 @@
 # FieldLens Atlas
 
-Three AI workloads on egocentric workplace video — compliance screening, training-data quality scoring, and action annotation — delivered as a local Flask demo and a production-grade Lambda + Step Functions pipeline.
+Egocentric workplace video processed through three AI workloads: compliance screening, training-data quality scoring, and action annotation. Runs as a local Flask app for development and as an AWS Lambda + Step Functions pipeline for production.
+
+> **Sales engineers:** see [DEMO_GUIDE.md](DEMO_GUIDE.md) for setup, demo script, and handoff instructions.
 
 ---
 
-## 1. Quick Start
+## Features
 
-**Time to first working demo: ~20 minutes**
+- **Compliance gate** — screens six risk categories (minors, PII, unsafe acts, etc.) and returns a PASS / REVIEW REQUIRED / BLOCK disposition with per-category evidence
+- **Quality score** — rates five training-data quality dimensions on a 1–5 scale and returns a PASS / REVIEW / REJECT verdict
+- **Action annotation** — segments video into time-coded atomic actions with structured metadata (verb, noun, hand, task type, confidence); uses Pegasus 1.5 + Marengo 3.0 in dual-model mode when configured
+- **Real-time UI** — results render card by card as each workload completes; no waiting for the full pipeline
+- **Evidence pack** — all three outputs assembled into a single downloadable JSON artifact
 
-### What you need
+---
+
+## Prerequisites
 
 - Python 3.9+
-- A TwelveLabs API key (get one at platform.twelvelabs.io)
-- AWS credentials with S3 access and an S3 bucket to use
-- A short egocentric/POV workplace video to demo with (MP4, MOV, or AVI)
+- AWS account with S3 access
+- TwelveLabs API key
 
-### Steps
+---
+
+## Installation
 
 ```bash
-# 1. Clone and install
 git clone https://github.com/n628767-hue/twelve-labs-app.git
 cd twelve-labs-app
 pip install -r requirements.txt
-
-# 2. Configure
 cp .env.example .env
 ```
 
-Open `.env` and fill in three values — that's all you need for local demo:
+Edit `.env` with your credentials (see [Configuration](#configuration) below).
 
-```
-TWELVELABS_API_KEY=tlk_...
-S3_BUCKET=your-bucket-name
-AWS_ACCESS_KEY_ID=...
-AWS_SECRET_ACCESS_KEY=...
-```
+---
+
+## Usage
+
+### Local development
 
 ```bash
-# 3. Run (macOS: port 5000 is taken by AirPlay — use 5001)
+# macOS: port 5000 is reserved by AirPlay Receiver
 flask run --port 5001
 ```
 
-Open `http://localhost:5001`, drop in a video, click **Run Full Intelligence Pipeline**.
+Open `http://localhost:5001`, upload a video, and click **Run Full Intelligence Pipeline**. The three workloads run in the background and results populate in real time.
 
-### Confirm it's working
+### AWS deployment
 
-The step counter in the UI should immediately show "Compliance Gate running… Step 1 of 3" with a pulsing dot on the first card. Results populate card by card as each workload finishes. If you see an error, check that your S3 bucket exists and your API key is valid.
-
----
-
-## 2. Adapting for a New Customer
-
-The three workloads are prompt-driven. Swapping in a customer's use case means editing prompts and field definitions — no infrastructure changes required.
-
-### Change what gets screened (Workload 1)
-
-**File:** `workloads/compliance.py`
-
-Edit the `PROMPT` string and the `SCHEMA` dict. The categories, severity levels, and disposition logic are all in the prompt. For a customer in healthcare, swap "competitor_ip" for "patient_data_visible". For construction, add "fall_hazard_proximity".
-
-### Change what quality means (Workload 2)
-
-**File:** `workloads/quality.py`
-
-Edit the `PROMPT` string and `SCHEMA`. The five dimensions and their 1–5 scales are defined in the prompt. For a customer focused on training data for surgical robotics, "action_visibility" and "lighting_adequacy" matter more than "audio_intelligibility" — reweight accordingly.
-
-### Change what actions get annotated (Workload 3)
-
-**File:** `workloads/annotation.py`
-
-Edit `SEGMENT_DESCRIPTION` and the `FIELDS` list. These control what Pegasus segments and what metadata it extracts per segment. The enum values on `task_type` and `hand` can be extended or replaced. For a customer annotating customer service interactions rather than physical tasks, `hand` becomes irrelevant — remove it.
-
-### Other things to change per customer
-
-| What | Where |
-|---|---|
-| App name / branding | `templates/index.html` — the `<title>` and `<header>` section |
-| S3 bucket | `.env` → `S3_BUCKET` |
-| AWS region | `.env` → `AWS_REGION` (default: `us-east-1`) |
-| Evidence pack fields | `utils/evidence.py` → `assemble_evidence_pack()` |
-
----
-
-## 3. Running the Demo
-
-### Before you start
-
-- Have a 1–5 minute egocentric/POV workplace video ready. The demo lands better with real customer footage, but any first-person task video works.
-- Make sure the Flask app is running (`flask run --port 5001`) and you can reach `http://localhost:5001`.
-
-### Demo flow
-
-**Step 1 — Upload**
-Drop the video onto the upload zone and click **Run Full Intelligence Pipeline**. The video uploads to S3 in the background and processing starts immediately.
-
-**Step 2 — Show real-time progress**
-Point to the step counter: "You can see it's on Step 1 of 3 — Compliance Gate is running right now." The dot on Card 1 pulses blue while it's active and turns green when it finishes. This is a good moment to explain what compliance screening is doing.
-
-**Step 3 — Compliance card populates (~30–60 seconds)**
-Walk through the six categories and the PASS / REVIEW REQUIRED / BLOCK disposition. If any categories are FLAGGED, show the evidence text and timestamp. Key message: *this is structured output a reviewer can act on, not a summary paragraph.*
-
-**Step 4 — Quality card populates (~30–60 seconds)**
-Show the five 1–5 dimension scores and the overall PASS / REVIEW / REJECT verdict. Key message: *this is what an AI training data pipeline needs before ingestion — objective quality gates, not manual spot-checking.*
-
-**Step 5 — Annotation card populates (2–8 minutes)**
-This one takes longer because it uses async time-based metadata extraction. Show the time-coded action segments with verb/noun/hand labels. Key message: *this is structured ground truth for training action recognition models — produced automatically from raw egocentric video.*
-
-**Step 6 — Download the evidence pack**
-Click **Download JSON**. Open it and show the structure: all three workload outputs in a single audit-ready document with a reviewer summary. Key message: *one API call, three AI workloads, one evidence artifact.*
-
-### Talking points that land well
-
-- "The same code runs locally for prototyping and in Lambda for production — no rewrite."
-- "The prompts are the product. We tuned them for your compliance categories; you own them."
-- "The annotation workload uses both Pegasus and Marengo — any segment only one model detects gets flagged LOW confidence and routed to human review automatically."
-
----
-
-## 4. Handing Off to Another SE
-
-### Share the repo and credentials
-
-The next SE needs:
-1. Access to this repo
-2. A TwelveLabs API key (create a new one — don't share yours)
-3. AWS credentials with S3 read/write on the bucket used in `.env`
-
-### Set up the TwelveLabs MCP plugin in Claude Code
-
-This gives the next SE the same ability to list indexes, search videos, and run analyses directly from Claude Code conversations — no API docs needed.
+Requires the [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html) and Python 3.12.
 
 ```bash
-# Run this inside the project directory
-claude plugin install twelvelabs@twelvelabs-plugins
-```
+# Store the API key in SSM before deploying (use --type String, not SecureString)
+aws ssm put-parameter \
+  --name /atlas-demo/TWELVELABS_API_KEY \
+  --value "tlk_..." \
+  --type String --region us-east-1
 
-Then create `.claude/settings.json` in the project root:
-
-```json
-{
-  "enabledPlugins": {
-    "twelvelabs@twelvelabs-plugins": true
-  }
-}
-```
-
-The plugin picks up `TWELVELABS_API_KEY` from the environment automatically. With it installed, the SE can ask Claude Code things like "list my indexes", "search for the moment the worker picks up the tool", or "what videos do I have?" and get live results inline.
-
-### For AWS deployment (if handing off a production instance)
-
-The deployed stack lives at `atlas-demo` in `us-east-1`. The TwelveLabs API key is in SSM at `/atlas-demo/TWELVELABS_API_KEY`. To redeploy after changes:
-
-```bash
 sam build && sam deploy
 ```
 
-To rotate the API key:
+To trigger the pipeline after deploying:
 
 ```bash
-aws ssm put-parameter \
-  --name /atlas-demo/TWELVELABS_API_KEY \
-  --value "tlk_NEW_KEY_HERE" \
-  --type String --overwrite \
-  --region us-east-1
-sam deploy
+aws s3 presign s3://YOUR_BUCKET/videos/YOUR_VIDEO.mp4 --expires-in 7200
+
+aws stepfunctions start-execution \
+  --state-machine-arn arn:aws:states:us-east-1:ACCOUNT:stateMachine:VideoProcessingStateMachine-XXXXX \
+  --input '{"video_url":"https://...","video_id":"your-uuid"}'
 ```
 
 ---
 
-## 5. Architecture Reference
+## Configuration
 
-### Local mode (demo)
+| Variable | Required | Description |
+|---|---|---|
+| `TWELVELABS_API_KEY` | Yes | TwelveLabs API key |
+| `S3_BUCKET` | Yes | S3 bucket for video storage |
+| `AWS_ACCESS_KEY_ID` | Yes* | AWS access key (*or use `~/.aws/credentials` / IAM role) |
+| `AWS_SECRET_ACCESS_KEY` | Yes* | AWS secret key |
+| `AWS_REGION` | No | AWS region (default: `us-east-1`) |
+| `MARENGO_INDEX_ID` | No | TwelveLabs index for Workload 3 dual-model path |
+| `MARENGO_VIDEO_ID` | No | TwelveLabs video ID within that index |
+
+---
+
+## Architecture
+
+### Local mode
 
 ```
 Browser → Flask (app.py)
-            ├── upload video → S3
-            ├── generate presigned URL
-            └── run workloads in background thread
-                 ├── Workload 1: compliance_gate()    ─→ TwelveLabs Pegasus 1.5 (sync)
-                 ├── Workload 2: quality_score()      ─→ TwelveLabs Pegasus 1.5 (sync)
-                 └── Workload 3: action_annotation()  ─→ TwelveLabs Pegasus 1.5 (async)
-                                                           + Marengo 3.0 search (optional)
-          ↑
-Browser polls /api/status every 3s — results render card by card as each workload completes
+  ├── upload video → S3, generate presigned URL
+  └── background thread runs three workloads sequentially
+       ├── Workload 1 → TwelveLabs Pegasus 1.5 (sync analyze)
+       ├── Workload 2 → TwelveLabs Pegasus 1.5 (sync analyze)
+       └── Workload 3 → TwelveLabs Pegasus 1.5 (async TBM) + Marengo 3.0 (optional)
+
+Browser polls /api/status every 3s — cards render as each workload completes.
 ```
 
-### AWS mode (production)
+### AWS mode
 
 ```
 S3 presigned URL + video_id
-  │
-  ▼
-Step Functions: VideoProcessingStateMachine (STANDARD)
-  ├── ComplianceGate   → Lambda (120s timeout) → workloads/compliance.py
-  ├── QualityScore     → Lambda (120s timeout) → workloads/quality.py
-  └── ActionAnnotation → Lambda (660s timeout) → workloads/annotation.py
-
-State passes video_url and video_id through every step unchanged.
-Each Lambda writes its result to $.compliance / $.quality / $.annotation.
+  └── Step Functions: VideoProcessingStateMachine (STANDARD)
+       ├── ComplianceGate   → Lambda 120s  → workloads/compliance.py
+       ├── QualityScore     → Lambda 120s  → workloads/quality.py
+       └── ActionAnnotation → Lambda 660s  → workloads/annotation.py
 ```
 
-Both modes call the same `workloads/` and `utils/` code. The Lambda handlers in `lambda_handler.py` are thin wrappers — three lines each.
+`video_url` and `video_id` flow through every state unchanged via `ResultPath`.
 
-### Workload 3 — dual-model merge
+---
 
-When `MARENGO_INDEX_ID` is set (env var or Step Functions input):
-
-1. Pegasus 1.5 async TBM → fully annotated segments
-2. Marengo 3.0 semantic search → timestamp clips for the same action space
-3. Merge: segments within 2 seconds of each other → both models agree, keep confidence
-4. Pegasus-only or Marengo-only → `confidence: LOW`, `review_reason` set
-
-Falls back silently to Pegasus-only if the index doesn't exist or the search fails.
-
-### Files
+## Project Structure
 
 ```
-app.py               Flask app + background threading + /api/status endpoint
-lambda_handler.py    Three Lambda entry points (compliance / quality / annotation)
-template.yaml        SAM template — 3 Lambda functions + Step Functions state machine
-samconfig.toml       SAM deploy defaults (stack: atlas-demo, region: us-east-1)
-.samignore           Excludes Flask assets and binaries from the Lambda package
+app.py               Flask app — local development entry point
+lambda_handler.py    Lambda entry points for the three workloads
+template.yaml        SAM template — Lambda functions + Step Functions state machine
+samconfig.toml       SAM deploy defaults
 workloads/
-  compliance.py      Prompt + schema for Workload 1
-  quality.py         Prompt + schema for Workload 2
-  annotation.py      Dual-model pipeline for Workload 3
+  compliance.py      Workload 1 — compliance gate prompt + schema
+  quality.py         Workload 2 — quality score prompt + schema
+  annotation.py      Workload 3 — dual-model annotation pipeline
 utils/
-  tl_client.py       TwelveLabs client singleton (reads TWELVELABS_API_KEY)
-  s3.py              Upload + presigned URL helpers (reads S3_BUCKET, AWS creds)
-  evidence.py        Assembles final evidence pack from all three workload results
+  tl_client.py       TwelveLabs client singleton
+  s3.py              S3 upload + presigned URL helpers
+  evidence.py        Evidence pack assembly
 templates/
-  index.html         Single-page UI — upload zone, real-time cards, download
+  index.html         Single-page UI
 ```
